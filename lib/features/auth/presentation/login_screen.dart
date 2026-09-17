@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -47,7 +48,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _cargando = true);
     try {
       await ref.read(authRepositoryProvider).signInWithGoogle();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('signInWithGoogle error: $error\n$stackTrace');
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

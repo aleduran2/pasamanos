@@ -57,6 +57,12 @@ void main() {
     expect(usuario.uid, 'uid-existente');
     expect(usuario.email, 'existente@example.com');
     expect(usuario.nombre, 'Usuario Existente');
+
+    // Se autorepara: si el usuario ya existía en Auth pero no tenía
+    // perfil en Firestore (p.ej. porque falló al registrarse), signIn
+    // se lo crea.
+    final doc = await firestore.collection('users').doc('uid-existente').get();
+    expect(doc.exists, isTrue);
   });
 
   test('authStateChanges refleja el usuario actual', () async {

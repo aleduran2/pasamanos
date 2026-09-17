@@ -57,7 +57,16 @@ class FirebaseAuthRepository implements AuthRepository {
       email: email,
       password: password,
     );
-    return _mapearUsuario(credential.user)!;
+    final user = credential.user!;
+    // Por si un intento de registro anterior creó el usuario en Auth pero
+    // falló al crear su perfil en Firestore (p.ej. Firestore recién
+    // habilitado después). crearSiNoExiste no pisa un perfil existente.
+    await _userProfileRepository.crearSiNoExiste(
+      uid: user.uid,
+      nombre: user.displayName ?? email,
+      email: email,
+    );
+    return _mapearUsuario(user)!;
   }
 
   @override
@@ -80,10 +89,20 @@ class FirebaseAuthRepository implements AuthRepository {
     return AppUser(uid: user.uid, email: email, nombre: nombre);
   }
 
+  // ID de cliente OAuth "Web" del proyecto pasamanos-dev, autogenerado por
+  // Firebase al habilitar Google como proveedor (ver google-services.json,
+  // oauth_client con client_type 3). No es un secreto: es un identificador
+  // público de cliente OAuth, requerido por Credential Manager en Android
+  // para armar el pedido de "Sign in with Google".
+  static const _googleServerClientId =
+      '304468409357-usied6eia3a0up3gtmrebup8frndn75d.apps.googleusercontent.com';
+
   @override
   Future<AppUser> signInWithGoogle() async {
     if (!_googleSignInInicializado) {
-      await GoogleSignIn.instance.initialize();
+      await GoogleSignIn.instance.initialize(
+        serverClientId: _googleServerClientId,
+      );
       _googleSignInInicializado = true;
     }
 
