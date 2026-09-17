@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../acuerdos/data/acuerdo_repository.dart';
+import '../../acuerdos/providers/acuerdo_providers.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../catalogo/models/publicacion.dart';
+import '../../catalogo/providers/catalogo_providers.dart';
 import '../data/chat_repository.dart';
 import '../models/conversacion.dart';
 import '../models/mensaje.dart';
@@ -18,6 +22,22 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _mensajeController = TextEditingController();
+
+  Publicacion? _publicacion;
+  bool _cerrandoAcuerdo = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPublicacion();
+  }
+
+  Future<void> _cargarPublicacion() async {
+    final publicacion = await ref
+        .read(publicacionRepositoryProvider)
+        .obtenerPorId(widget.conversacion.publicacionId);
+    if (mounted) setState(() => _publicacion = publicacion);
+  }
 
   @override
   void dispose() {
@@ -41,13 +61,97 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
   }
 
+  Future<void> _abrirDialogoCerrarAcuerdo() async {
+    final publicacion = _publicacion;
+    if (publicacion == null) return;
+
+    final precioController = TextEditingController(
+      text: publicacion.precio.toStringAsFixed(0),
+    );
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar acuerdo'),
+        content: TextField(
+          controller: precioController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Precio acordado'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true) return;
+
+    final precio = double.tryParse(
+      precioController.text.replaceAll(',', '.'),
+    );
+    if (precio == null || precio <= 0) return;
+
+    final usuario = ref.read(authRepositoryProvider).currentUser;
+    if (usuario == null) return;
+
+    setState(() => _cerrandoAcuerdo = true);
+    try {
+      await ref
+          .read(acuerdoRepositoryProvider)
+          .cerrarAcuerdo(
+            conversacionId: widget.conversacion.id,
+            publicacionId: publicacion.id,
+            compradorId: widget.conversacion.compradorId,
+            vendedorId: usuario.uid,
+            precioAcordado: precio,
+          );
+      await _cargarPublicacion();
+    } on PublicacionNoDisponibleException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Esta publicación ya no está disponible.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo cerrar el acuerdo.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cerrandoAcuerdo = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final miUid = ref.read(authRepositoryProvider).currentUser?.uid;
     final ChatRepository chatRepository = ref.read(chatRepositoryProvider);
 
+    final publicacion = _publicacion;
+    final puedoOfrecerCierre =
+        publicacion != null &&
+        publicacion.vendedorId == miUid &&
+        publicacion.estado == EstadoPublicacion.disponible;
+
     return Scaffold(
-      appBar: AppBar(title: Text(widget.conversacion.publicacionTitulo)),
+      appBar: AppBar(
+        title: Text(widget.conversacion.publicacionTitulo),
+        actions: [
+          if (puedoOfrecerCierre)
+            TextButton(
+              onPressed: _cerrandoAcuerdo ? null : _abrirDialogoCerrarAcuerdo,
+              child: const Text('Cerrar acuerdo'),
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -74,6 +178,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   itemCount: mensajes.length,
                   itemBuilder: (context, index) {
                     final mensaje = mensajes[mensajes.length - 1 - index];
+                    if (mensaje.tipo == TipoMensaje.sistema) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Center(
+                          child: Text(
+                            mensaje.texto,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(fontStyle: FontStyle.italic),
+                          ),
+                        ),
+                      );
+                    }
                     final esMio = mensaje.emisorId == miUid;
                     return Align(
                       alignment: esMio
