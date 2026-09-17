@@ -1,1 +1,24 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"pasamanos-dev","appId":"1:304468409357:android:f60256c9d76b8f02bb2944","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"pasamanos-dev","configurations":{"android":"1:304468409357:android:f60256c9d76b8f02bb2944"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "pasamanos-dev",
+          "appId": "1:304468409357:android:f60256c9d76b8f02bb2944",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "pasamanos-dev",
+          "configurations": {
+            "android": "1:304468409357:android:f60256c9d76b8f02bb2944"
+          }
+        }
+      }
+    }
+  }
+}

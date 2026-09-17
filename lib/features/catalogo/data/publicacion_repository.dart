@@ -55,11 +55,20 @@ class FirestorePublicacionRepository implements PublicacionRepository {
   Future<List<Publicacion>> listarPorVendedor(String vendedorId) async {
     final snapshot = await _publicacionesRef
         .where('vendedorId', isEqualTo: vendedorId)
-        .orderBy('fechaPublicacion', descending: true)
         .get();
-    return snapshot.docs
+    final publicaciones = snapshot.docs
         .map((doc) => Publicacion.fromFirestore(doc.id, doc.data()))
         .toList();
+
+    // Se ordena del lado del cliente (no en la query) para no requerir un
+    // índice compuesto en Firestore, igual que en buscarDisponibles.
+    publicaciones.sort((a, b) {
+      final fechaA = a.fechaPublicacion;
+      final fechaB = b.fechaPublicacion;
+      if (fechaA == null || fechaB == null) return 0;
+      return fechaB.compareTo(fechaA);
+    });
+    return publicaciones;
   }
 
   @override
