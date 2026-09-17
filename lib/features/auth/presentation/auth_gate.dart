@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/widgets/home_placeholder_screen.dart';
+import '../../home/presentation/home_screen.dart';
 import '../providers/auth_providers.dart';
 import 'login_screen.dart';
 
@@ -14,7 +14,7 @@ class AuthGate extends ConsumerWidget {
 
     return authState.when(
       data: (usuario) =>
-          usuario == null ? const LoginScreen() : const HomePlaceholderScreen(),
+          usuario == null ? const LoginScreen() : const HomeScreen(),
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) => Scaffold(
