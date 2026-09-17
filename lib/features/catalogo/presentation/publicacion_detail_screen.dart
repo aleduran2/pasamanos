@@ -1,14 +1,64 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/providers/auth_providers.dart';
+import '../../chat/presentation/chat_screen.dart';
+import '../../chat/providers/chat_providers.dart';
 import '../models/publicacion.dart';
 
-class PublicacionDetailScreen extends StatelessWidget {
+class PublicacionDetailScreen extends ConsumerStatefulWidget {
   const PublicacionDetailScreen({super.key, required this.publicacion});
 
   final Publicacion publicacion;
 
   @override
+  ConsumerState<PublicacionDetailScreen> createState() =>
+      _PublicacionDetailScreenState();
+}
+
+class _PublicacionDetailScreenState
+    extends ConsumerState<PublicacionDetailScreen> {
+  bool _contactando = false;
+
+  Future<void> _contactarVendedor() async {
+    final usuario = ref.read(authRepositoryProvider).currentUser;
+    if (usuario == null) return;
+
+    setState(() => _contactando = true);
+    try {
+      final conversacion = await ref
+          .read(chatRepositoryProvider)
+          .obtenerOCrear(
+            publicacionId: widget.publicacion.id,
+            publicacionTitulo: widget.publicacion.titulo,
+            compradorId: usuario.uid,
+            vendedorId: widget.publicacion.vendedorId,
+          );
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatScreen(conversacion: conversacion),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo iniciar la conversación. Intentá de nuevo.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _contactando = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final publicacion = widget.publicacion;
+    final usuario = ref.watch(authRepositoryProvider).currentUser;
+    final esMiPublicacion = usuario?.uid == publicacion.vendedorId;
+
     final fotos = [
       publicacion.fotos.frente,
       publicacion.fotos.dorso,
@@ -58,6 +108,14 @@ class PublicacionDetailScreen extends StatelessWidget {
                 Chip(label: Text(publicacion.barrio!)),
             ],
           ),
+          if (!esMiPublicacion) ...[
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _contactando ? null : _contactarVendedor,
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Contactar vendedor'),
+            ),
+          ],
         ],
       ),
     );

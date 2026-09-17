@@ -8,6 +8,7 @@ import '../../catalogo/presentation/publicacion_detail_screen.dart';
 import '../../catalogo/presentation/publicacion_list_tile.dart';
 import '../../catalogo/presentation/publicar_producto_screen.dart';
 import '../../catalogo/providers/catalogo_providers.dart';
+import '../../chat/presentation/conversaciones_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -51,6 +52,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             tooltip: 'Buscar productos',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const BusquedaScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: 'Mensajes',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ConversacionesScreen()),
             ),
           ),
           IconButton(
