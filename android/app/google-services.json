@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "304468409357",
+    "project_id": "pasamanos-dev",
+    "storage_bucket": "pasamanos-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:304468409357:android:f60256c9d76b8f02bb2944",
+        "android_client_info": {
+          "package_name": "com.pasamanos.pasamanos"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "304468409357-usied6eia3a0up3gtmrebup8frndn75d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDqT2VkVqDmjaGUqI6l40PoP394ikugT68"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "304468409357-usied6eia3a0up3gtmrebup8frndn75d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
