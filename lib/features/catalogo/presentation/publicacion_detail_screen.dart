@@ -64,7 +64,7 @@ class _PublicacionDetailScreenState
       publicacion.fotos.dorso,
       publicacion.fotos.etiqueta,
       publicacion.fotos.detalle,
-    ];
+    ].whereType<String>().toList();
 
     return Scaffold(
       appBar: AppBar(title: Text(publicacion.titulo)),

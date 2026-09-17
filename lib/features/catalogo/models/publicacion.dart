@@ -64,29 +64,31 @@ enum EstadoPublicacion {
 class FotosPublicacion {
   const FotosPublicacion({
     required this.frente,
-    required this.dorso,
-    required this.etiqueta,
-    required this.detalle,
+    this.dorso,
+    this.etiqueta,
+    this.detalle,
   });
 
+  /// Única foto obligatoria. El resto ayuda a generar confianza pero no
+  /// bloquea la publicación si el vendedor no las carga.
   final String frente;
-  final String dorso;
-  final String etiqueta;
-  final String detalle;
+  final String? dorso;
+  final String? etiqueta;
+  final String? detalle;
 
   Map<String, dynamic> toFirestore() => {
     'frente': frente,
-    'dorso': dorso,
-    'etiqueta': etiqueta,
-    'detalle': detalle,
+    if (dorso != null) 'dorso': dorso,
+    if (etiqueta != null) 'etiqueta': etiqueta,
+    if (detalle != null) 'detalle': detalle,
   };
 
   factory FotosPublicacion.fromFirestore(Map<String, dynamic> data) {
     return FotosPublicacion(
       frente: data['frente'] as String? ?? '',
-      dorso: data['dorso'] as String? ?? '',
-      etiqueta: data['etiqueta'] as String? ?? '',
-      detalle: data['detalle'] as String? ?? '',
+      dorso: data['dorso'] as String?,
+      etiqueta: data['etiqueta'] as String?,
+      detalle: data['detalle'] as String?,
     );
   }
 }

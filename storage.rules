@@ -1,0 +1,25 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Fotos de publicaciones: la ruta incluye el uid de la vendedora
+    // (publicaciones/{vendedorId}/{publicacionId}/{archivo}) para poder
+    // validar quién puede subir sin depender de que el documento de
+    // Firestore ya exista — las fotos se suben antes de crear la
+    // publicación. Lectura pública (autenticada), igual que el catálogo
+    // en Firestore.
+    match /publicaciones/{vendedorId}/{publicacionId}/{archivo} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == vendedorId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Todo lo demás, denegado por defecto.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

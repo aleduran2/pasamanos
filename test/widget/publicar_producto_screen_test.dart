@@ -68,31 +68,29 @@ void main() {
     verifyNever(() => mockPublicacionRepository.guardar(any()));
   });
 
-  testWidgets('avisa si faltan fotos aunque los campos estén completos', (
-    tester,
-  ) async {
-    await pumpPantalla(tester);
+  testWidgets(
+    'avisa si falta la foto de frente aunque los campos estén completos',
+    (tester) async {
+      await pumpPantalla(tester);
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Título'),
-      'Guardapolvo talle 8',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Descripción'),
-      'Usado, buen estado',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Precio'),
-      '5000',
-    );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Título'),
+        'Guardapolvo talle 8',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Descripción'),
+        'Usado, buen estado',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Precio'),
+        '5000',
+      );
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Publicar'));
-    await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Publicar'));
+      await tester.pump();
 
-    expect(
-      find.textContaining('Faltan fotos'),
-      findsOneWidget,
-    );
-    verifyNever(() => mockPublicacionRepository.guardar(any()));
-  });
+      expect(find.textContaining('Falta la foto de frente'), findsOneWidget);
+      verifyNever(() => mockPublicacionRepository.guardar(any()));
+    },
+  );
 }

@@ -11,9 +11,9 @@ import 'photo_slot.dart';
 
 const _etiquetasFotos = {
   'frente': 'Frente',
-  'dorso': 'Dorso',
-  'etiqueta': 'Etiqueta',
-  'detalle': 'Detalle',
+  'dorso': 'Dorso (opcional)',
+  'etiqueta': 'Etiqueta (opcional)',
+  'detalle': 'Detalle (opcional)',
 };
 
 class PublicarProductoScreen extends ConsumerStatefulWidget {
@@ -54,7 +54,7 @@ class _PublicarProductoScreenState
     super.dispose();
   }
 
-  bool get _faltanFotos => _fotos.values.any((f) => f == null);
+  bool get _faltaFoto => _fotos['frente'] == null;
 
   Future<void> _elegirFoto(String slot) async {
     final origen = await showModalBottomSheet<ImageSource>(
@@ -90,9 +90,9 @@ class _PublicarProductoScreenState
 
   Future<void> _publicar() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_faltanFotos) {
+    if (_faltaFoto) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Faltan fotos: sacá las 4 (frente, dorso, etiqueta y detalle).')),
+        const SnackBar(content: Text('Falta la foto de frente.')),
       );
       return;
     }
@@ -107,11 +107,14 @@ class _PublicarProductoScreenState
       final id = repositorio.generarId();
 
       final urls = <String, String>{};
-      for (final slot in _fotos.keys) {
-        urls[slot] = await subidor.subir(
-          archivo: _fotos[slot]!,
+      for (final entry in _fotos.entries) {
+        final archivo = entry.value;
+        if (archivo == null) continue;
+        urls[entry.key] = await subidor.subir(
+          archivo: archivo,
+          vendedorId: usuario.uid,
           publicacionId: id,
-          nombreArchivo: slot,
+          nombreArchivo: entry.key,
         );
       }
 
@@ -125,9 +128,9 @@ class _PublicarProductoScreenState
         precio: double.parse(_precioController.text.replaceAll(',', '.')),
         fotos: FotosPublicacion(
           frente: urls['frente']!,
-          dorso: urls['dorso']!,
-          etiqueta: urls['etiqueta']!,
-          detalle: urls['detalle']!,
+          dorso: urls['dorso'],
+          etiqueta: urls['etiqueta'],
+          detalle: urls['detalle'],
         ),
         colegio: _colegioController.text.trim().isEmpty
             ? null

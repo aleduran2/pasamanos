@@ -64,6 +64,28 @@ void main() {
     expect(publicacion, isNull);
   });
 
+  test('se puede guardar y recuperar una publicación con solo la foto de frente', () async {
+    final id = repository.generarId();
+    await repository.guardar(
+      Publicacion(
+        id: id,
+        vendedorId: 'uid-vendedora',
+        titulo: 'Campera talle 10',
+        descripcion: 'Poco uso',
+        categoria: Categoria.ropa,
+        etapaEdad: EtapaEdad.primaria,
+        precio: 3000,
+        fotos: const FotosPublicacion(frente: 'https://example.com/frente.jpg'),
+      ),
+    );
+
+    final publicacion = await repository.obtenerPorId(id);
+    expect(publicacion!.fotos.frente, 'https://example.com/frente.jpg');
+    expect(publicacion.fotos.dorso, isNull);
+    expect(publicacion.fotos.etiqueta, isNull);
+    expect(publicacion.fotos.detalle, isNull);
+  });
+
   test('listarPorVendedor devuelve solo las publicaciones de ese vendedor', () async {
     final idPropia = repository.generarId();
     await repository.guardar(construirPublicacion(idPropia));
