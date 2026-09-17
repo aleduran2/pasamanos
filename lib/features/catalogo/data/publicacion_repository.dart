@@ -12,6 +12,16 @@ abstract class PublicacionRepository {
   Future<Publicacion?> obtenerPorId(String id);
 
   Future<List<Publicacion>> listarPorVendedor(String vendedorId);
+
+  /// Busca publicaciones disponibles. La etapa/edad es el filtro principal
+  /// (obligatorio); categoría, colegio y barrio son filtros secundarios
+  /// opcionales.
+  Future<List<Publicacion>> buscarDisponibles({
+    required EtapaEdad etapaEdad,
+    Categoria? categoria,
+    String? colegio,
+    String? barrio,
+  });
 }
 
 class FirestorePublicacionRepository implements PublicacionRepository {
@@ -50,5 +60,42 @@ class FirestorePublicacionRepository implements PublicacionRepository {
     return snapshot.docs
         .map((doc) => Publicacion.fromFirestore(doc.id, doc.data()))
         .toList();
+  }
+
+  @override
+  Future<List<Publicacion>> buscarDisponibles({
+    required EtapaEdad etapaEdad,
+    Categoria? categoria,
+    String? colegio,
+    String? barrio,
+  }) async {
+    Query<Map<String, dynamic>> query = _publicacionesRef
+        .where('estado', isEqualTo: EstadoPublicacion.disponible.valorFirestore)
+        .where('etapaEdad', isEqualTo: etapaEdad.valorFirestore);
+
+    if (categoria != null) {
+      query = query.where('categoria', isEqualTo: categoria.valorFirestore);
+    }
+    if (colegio != null && colegio.trim().isNotEmpty) {
+      query = query.where('colegio', isEqualTo: colegio.trim());
+    }
+    if (barrio != null && barrio.trim().isNotEmpty) {
+      query = query.where('barrio', isEqualTo: barrio.trim());
+    }
+
+    final snapshot = await query.get();
+    final publicaciones = snapshot.docs
+        .map((doc) => Publicacion.fromFirestore(doc.id, doc.data()))
+        .toList();
+
+    // Se ordena del lado del cliente (no en la query) para no requerir un
+    // índice compuesto en Firestore por cada combinación de filtros.
+    publicaciones.sort((a, b) {
+      final fechaA = a.fechaPublicacion;
+      final fechaB = b.fechaPublicacion;
+      if (fechaA == null || fechaB == null) return 0;
+      return fechaB.compareTo(fechaA);
+    });
+    return publicaciones;
   }
 }

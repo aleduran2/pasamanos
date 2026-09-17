@@ -91,4 +91,106 @@ void main() {
     expect(publicaciones, hasLength(1));
     expect(publicaciones.first.id, idPropia);
   });
+
+  group('buscarDisponibles', () {
+    const fotos = FotosPublicacion(
+      frente: 'a',
+      dorso: 'b',
+      etiqueta: 'c',
+      detalle: 'd',
+    );
+
+    Future<void> guardarConEstado({
+      required String id,
+      required EtapaEdad etapaEdad,
+      required Categoria categoria,
+      EstadoPublicacion estado = EstadoPublicacion.disponible,
+      String? colegio,
+    }) {
+      return repository.guardar(
+        Publicacion(
+          id: id,
+          vendedorId: 'uid-vendedora',
+          titulo: 'Producto $id',
+          descripcion: 'Descripción',
+          categoria: categoria,
+          etapaEdad: etapaEdad,
+          precio: 1000,
+          fotos: fotos,
+          estado: estado,
+          colegio: colegio,
+        ),
+      );
+    }
+
+    test('filtra por etapa/edad y excluye lo no disponible', () async {
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.primaria,
+        categoria: Categoria.uniformes,
+      );
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.bebe,
+        categoria: Categoria.ropa,
+      );
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.primaria,
+        categoria: Categoria.libros,
+        estado: EstadoPublicacion.vendido,
+      );
+
+      final resultados = await repository.buscarDisponibles(
+        etapaEdad: EtapaEdad.primaria,
+      );
+
+      expect(resultados, hasLength(1));
+      expect(resultados.first.categoria, Categoria.uniformes);
+    });
+
+    test('aplica el filtro secundario de categoría', () async {
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.secundaria,
+        categoria: Categoria.uniformes,
+      );
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.secundaria,
+        categoria: Categoria.libros,
+      );
+
+      final resultados = await repository.buscarDisponibles(
+        etapaEdad: EtapaEdad.secundaria,
+        categoria: Categoria.libros,
+      );
+
+      expect(resultados, hasLength(1));
+      expect(resultados.first.categoria, Categoria.libros);
+    });
+
+    test('aplica el filtro secundario de colegio', () async {
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.jardin,
+        categoria: Categoria.uniformes,
+        colegio: 'Colegio San Martín',
+      );
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.jardin,
+        categoria: Categoria.uniformes,
+        colegio: 'Otro colegio',
+      );
+
+      final resultados = await repository.buscarDisponibles(
+        etapaEdad: EtapaEdad.jardin,
+        colegio: 'Colegio San Martín',
+      );
+
+      expect(resultados, hasLength(1));
+      expect(resultados.first.colegio, 'Colegio San Martín');
+    });
+  });
 }

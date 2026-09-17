@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/providers/auth_providers.dart';
+import '../../busqueda/presentation/busqueda_screen.dart';
 import '../../catalogo/models/publicacion.dart';
 import '../../catalogo/presentation/publicacion_detail_screen.dart';
+import '../../catalogo/presentation/publicacion_list_tile.dart';
 import '../../catalogo/presentation/publicar_producto_screen.dart';
 import '../../catalogo/providers/catalogo_providers.dart';
 
@@ -45,6 +47,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: const Text('Pasamanos'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Buscar productos',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BusquedaScreen()),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar sesión',
             onPressed: () => ref.read(authRepositoryProvider).signOut(),
@@ -84,23 +93,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             itemCount: publicaciones.length,
             itemBuilder: (context, index) {
               final publicacion = publicaciones[index];
-              return ListTile(
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.network(
-                    publicacion.fotos.frente,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const SizedBox(
-                      width: 56,
-                      height: 56,
-                      child: Icon(Icons.image_not_supported_outlined),
-                    ),
-                  ),
-                ),
-                title: Text(publicacion.titulo),
-                subtitle: Text('\$${publicacion.precio.toStringAsFixed(0)}'),
+              return PublicacionListTile(
+                publicacion: publicacion,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) =>
