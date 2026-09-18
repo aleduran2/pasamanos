@@ -9,21 +9,30 @@ import 'package:pasamanos/features/catalogo/data/publicacion_repository.dart';
 import 'package:pasamanos/features/catalogo/models/publicacion.dart';
 import 'package:pasamanos/features/catalogo/providers/catalogo_providers.dart';
 import 'package:pasamanos/features/home/presentation/home_screen.dart';
+import 'package:pasamanos/features/notificaciones/data/fcm_token_service.dart';
+import 'package:pasamanos/features/notificaciones/providers/notificaciones_providers.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockPublicacionRepository extends Mock implements PublicacionRepository {}
 
+class _MockFcmTokenService extends Mock implements FcmTokenService {}
+
 void main() {
   late _MockAuthRepository mockAuthRepository;
   late _MockPublicacionRepository mockPublicacionRepository;
+  late _MockFcmTokenService mockFcmTokenService;
 
   const usuario = AppUser(uid: 'uid-1', email: 'vendedora@example.com');
 
   setUp(() {
     mockAuthRepository = _MockAuthRepository();
     mockPublicacionRepository = _MockPublicacionRepository();
+    mockFcmTokenService = _MockFcmTokenService();
     when(() => mockAuthRepository.currentUser).thenReturn(usuario);
+    when(
+      () => mockFcmTokenService.registrarToken(any()),
+    ).thenAnswer((_) async {});
   });
 
   Future<void> pumpHomeScreen(WidgetTester tester) async {
@@ -34,6 +43,7 @@ void main() {
           publicacionRepositoryProvider.overrideWithValue(
             mockPublicacionRepository,
           ),
+          fcmTokenServiceProvider.overrideWithValue(mockFcmTokenService),
         ],
         child: const MaterialApp(home: HomeScreen()),
       ),
