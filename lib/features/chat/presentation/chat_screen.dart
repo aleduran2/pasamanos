@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,10 +34,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _cargarPublicacion() async {
-    final publicacion = await ref
-        .read(publicacionRepositoryProvider)
-        .obtenerPorId(widget.conversacion.publicacionId);
-    if (mounted) setState(() => _publicacion = publicacion);
+    try {
+      final publicacion = await ref
+          .read(publicacionRepositoryProvider)
+          .obtenerPorId(widget.conversacion.publicacionId);
+      if (mounted) setState(() => _publicacion = publicacion);
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('ChatScreen._cargarPublicacion error: $error\n$stackTrace');
+      }
+    }
   }
 
   @override
