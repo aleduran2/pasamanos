@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:pasamanos/features/auth/data/auth_repository.dart';
+import 'package:pasamanos/features/auth/providers/auth_providers.dart';
 import 'package:pasamanos/features/busqueda/presentation/busqueda_screen.dart';
 import 'package:pasamanos/features/catalogo/data/publicacion_repository.dart';
 import 'package:pasamanos/features/catalogo/models/publicacion.dart';
@@ -9,8 +11,11 @@ import 'package:pasamanos/features/catalogo/providers/catalogo_providers.dart';
 
 class _MockPublicacionRepository extends Mock implements PublicacionRepository {}
 
+class _MockAuthRepository extends Mock implements AuthRepository {}
+
 void main() {
   late _MockPublicacionRepository mockPublicacionRepository;
+  late _MockAuthRepository mockAuthRepository;
 
   setUpAll(() {
     registerFallbackValue(EtapaEdad.bebe);
@@ -19,6 +24,8 @@ void main() {
 
   setUp(() {
     mockPublicacionRepository = _MockPublicacionRepository();
+    mockAuthRepository = _MockAuthRepository();
+    when(() => mockAuthRepository.currentUser).thenReturn(null);
   });
 
   Future<void> pumpPantalla(WidgetTester tester) async {
@@ -28,6 +35,7 @@ void main() {
           publicacionRepositoryProvider.overrideWithValue(
             mockPublicacionRepository,
           ),
+          authRepositoryProvider.overrideWithValue(mockAuthRepository),
         ],
         child: const MaterialApp(home: BusquedaScreen()),
       ),
@@ -59,6 +67,8 @@ void main() {
         categoria: any(named: 'categoria'),
         colegio: any(named: 'colegio'),
         barrio: any(named: 'barrio'),
+        talle: any(named: 'talle'),
+        colores: any(named: 'colores'),
       ),
     ).thenAnswer(
       (_) async => [
@@ -95,6 +105,8 @@ void main() {
         categoria: any(named: 'categoria'),
         colegio: any(named: 'colegio'),
         barrio: any(named: 'barrio'),
+        talle: any(named: 'talle'),
+        colores: any(named: 'colores'),
       ),
     ).thenAnswer((_) async => []);
 

@@ -38,7 +38,7 @@ void main() {
     // el viewport de test por defecto, así que el ListView no llega a
     // construir el botón "Publicar" (renderizado perezoso). Agrandamos la
     // superficie de test para que todo entre sin necesidad de scrollear.
-    await binding.setSurfaceSize(const Size(800, 1600));
+    await binding.setSurfaceSize(const Size(800, 2400));
     addTearDown(() => binding.setSurfaceSize(null));
 
     await tester.pumpWidget(

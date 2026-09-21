@@ -20,6 +20,26 @@ abstract class AuthRepository {
   Future<AppUser> signInWithGoogle();
 
   Future<void> signOut();
+
+  /// Si la cuenta actual tiene contraseña (a diferencia de una cuenta
+  /// vinculada solo con Google) — para decidir si mostrar la opción de
+  /// cambiarla.
+  bool get tieneContrasena;
+
+  /// Cambia el nombre visible, tanto en Firebase Auth como en Firestore
+  /// (perfil propio y la copia pública que ve el resto de la comunidad).
+  Future<void> actualizarNombre(String nombre);
+
+  /// Cambia la foto de perfil, igual que el nombre.
+  Future<void> actualizarFoto(String fotoUrl);
+
+  /// Requiere reautenticación (Firebase Auth exige un login reciente para
+  /// esta operación) — por eso pide la contraseña actual, no solo la
+  /// nueva.
+  Future<void> cambiarContrasena({
+    required String actual,
+    required String nueva,
+  });
 }
 
 class FirebaseAuthRepository implements AuthRepository {
@@ -131,5 +151,50 @@ class FirebaseAuthRepository implements AuthRepository {
     if (_googleSignInInicializado) {
       await GoogleSignIn.instance.signOut();
     }
+  }
+
+  @override
+  bool get tieneContrasena =>
+      _firebaseAuth.currentUser?.providerData.any(
+        (proveedor) => proveedor.providerId == 'password',
+      ) ??
+      false;
+
+  @override
+  Future<void> actualizarNombre(String nombre) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return;
+    await user.updateDisplayName(nombre);
+    // `updateDisplayName` no siempre refleja el cambio en el objeto
+    // `User` en memoria hasta este reload explícito.
+    await user.reload();
+    await _userProfileRepository.actualizarNombre(uid: user.uid, nombre: nombre);
+  }
+
+  @override
+  Future<void> actualizarFoto(String fotoUrl) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return;
+    await user.updatePhotoURL(fotoUrl);
+    await user.reload();
+    await _userProfileRepository.actualizarFoto(uid: user.uid, fotoUrl: fotoUrl);
+  }
+
+  @override
+  Future<void> cambiarContrasena({
+    required String actual,
+    required String nueva,
+  }) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null || user.email == null) return;
+    final credencial = EmailAuthProvider.credential(
+      email: user.email!,
+      password: actual,
+    );
+    // Firebase exige un login "reciente" para cambiar la contraseña — de
+    // ahí pedir la actual y reautenticar antes, en vez de llamar
+    // updatePassword directo (tiraría `requires-recent-login`).
+    await user.reauthenticateWithCredential(credencial);
+    await user.updatePassword(nueva);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/empty_state.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../models/conversacion.dart';
 import '../providers/chat_providers.dart';
@@ -12,6 +13,7 @@ class ConversacionesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final usuario = ref.read(authRepositoryProvider).currentUser;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mensajes')),
@@ -26,33 +28,70 @@ class ConversacionesScreen extends ConsumerWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return const Center(
-                    child: Text('No se pudieron cargar tus conversaciones.'),
+                  return const EmptyState(
+                    icon: Icons.error_outline_rounded,
+                    mensaje: 'No se pudieron cargar tus conversaciones.',
                   );
                 }
                 final conversaciones = snapshot.data ?? [];
                 if (conversaciones.isEmpty) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
+                  return const EmptyState(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    mensaje:
                         'Todavía no tenés conversaciones.\nEscribile a un vendedor desde un producto.',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
                   );
                 }
-                return ListView.builder(
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
                   itemCount: conversaciones.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1, indent: 72),
                   itemBuilder: (context, index) {
                     final conversacion = conversaciones[index];
+                    final noLeido = conversacion.noLeidoPor(usuario.uid);
                     return ListTile(
-                      title: Text(conversacion.publicacionTitulo),
+                      leading: CircleAvatar(
+                        radius: 24,
+                        backgroundColor: colorScheme.primaryContainer,
+                        child: Icon(
+                          Icons.storefront_rounded,
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      title: Text(
+                        conversacion.publicacionTitulo,
+                        style: TextStyle(
+                          fontWeight: noLeido
+                              ? FontWeight.w800
+                              : FontWeight.w500,
+                        ),
+                      ),
                       subtitle: Text(
                         conversacion.ultimoMensaje ?? 'Sin mensajes todavía',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: noLeido
+                              ? FontWeight.w700
+                              : FontWeight.normal,
+                          color: noLeido
+                              ? colorScheme.onSurface
+                              : colorScheme.onSurfaceVariant,
+                        ),
                       ),
+                      trailing: noLeido
+                          ? Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            )
+                          : null,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) =>

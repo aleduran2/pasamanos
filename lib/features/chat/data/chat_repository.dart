@@ -22,7 +22,12 @@ abstract class ChatRepository {
     required String conversacionId,
     required String emisorId,
     required String texto,
+    TipoMensaje tipo = TipoMensaje.texto,
   });
+
+  /// Marca la conversación como vista por esta persona (para que deje de
+  /// mostrarse como "no leída" en la lista de conversaciones).
+  Future<void> marcarComoLeido(String conversacionId, String uid);
 }
 
 class FirestoreChatRepository implements ChatRepository {
@@ -99,6 +104,7 @@ class FirestoreChatRepository implements ChatRepository {
     required String conversacionId,
     required String emisorId,
     required String texto,
+    TipoMensaje tipo = TipoMensaje.texto,
   }) async {
     final conversacionRef = _conversacionesRef.doc(conversacionId);
     final mensajeRef = conversacionRef.collection('mensajes').doc();
@@ -109,12 +115,21 @@ class FirestoreChatRepository implements ChatRepository {
       'texto': texto,
       'timestamp': FieldValue.serverTimestamp(),
       'leido': false,
-      'tipo': TipoMensaje.texto.valorFirestore,
+      'tipo': tipo.valorFirestore,
     });
     batch.update(conversacionRef, {
       'ultimoMensaje': texto,
+      'ultimoMensajeEmisorId': emisorId,
       'fechaUltimoMensaje': FieldValue.serverTimestamp(),
+      'leidoPor': [emisorId],
     });
     await batch.commit();
+  }
+
+  @override
+  Future<void> marcarComoLeido(String conversacionId, String uid) async {
+    await _conversacionesRef.doc(conversacionId).update({
+      'leidoPor': FieldValue.arrayUnion([uid]),
+    });
   }
 }

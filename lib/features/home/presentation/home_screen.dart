@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/empty_state.dart';
+import '../../alertas/presentation/alertas_screen.dart';
+import '../../auth/models/app_user.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../busqueda/presentation/busqueda_screen.dart';
 import '../../catalogo/models/publicacion.dart';
@@ -9,7 +12,9 @@ import '../../catalogo/presentation/publicacion_list_tile.dart';
 import '../../catalogo/presentation/publicar_producto_screen.dart';
 import '../../catalogo/providers/catalogo_providers.dart';
 import '../../chat/presentation/conversaciones_screen.dart';
+import '../../favoritos/presentation/favoritos_screen.dart';
 import '../../notificaciones/providers/notificaciones_providers.dart';
+import '../../perfil/presentation/perfil_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -41,38 +46,82 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _irAPublicar() async {
-    final publicado = await Navigator.of(context).push<bool>(
+    final nuevaPublicacion = await Navigator.of(context).push<Publicacion>(
       MaterialPageRoute(builder: (_) => const PublicarProductoScreen()),
     );
-    if (publicado == true) {
-      setState(() => _futuro = _cargarMisPublicaciones());
+    if (nuevaPublicacion == null) return;
+    // Se agrega directo a la lista ya cargada en vez de volver a pedirle a
+    // Firestore: así se ve al toque, sin esperar un segundo viaje de red.
+    setState(() {
+      _futuro = _futuro.then((lista) => [nuevaPublicacion, ...lista]);
+    });
+  }
+
+  // El estado de una publicación puede cambiar en otra pantalla (p. ej.
+  // "Marcar como vendido" desde el chat), así que al volver de cualquier
+  // pantalla que pueda haber tocado eso, se refresca la lista — si no,
+  // "Mis publicaciones" queda mostrando datos viejos hasta reabrir la app.
+  Future<void> _irAConversaciones() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ConversacionesScreen()));
+    if (mounted) setState(() => _futuro = _cargarMisPublicaciones());
+  }
+
+  Future<void> _verPublicacion(Publicacion publicacion) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PublicacionDetailScreen(publicacion: publicacion),
+      ),
+    );
+    if (mounted) setState(() => _futuro = _cargarMisPublicaciones());
+  }
+
+  Future<void> _irAPerfil() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PerfilScreen()));
+    // El nombre/foto pueden haber cambiado en "Mi perfil" — refresca para
+    // que el encabezado de acá no se quede mostrando datos viejos.
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _cerrarSesion() async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Querés cerrar tu sesión en Pasamanos?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado == true) {
+      await ref.read(authRepositoryProvider).signOut();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final usuario = ref.watch(authRepositoryProvider).currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pasamanos'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
-            tooltip: 'Buscar productos',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const BusquedaScreen()),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chat_bubble_outline),
-            tooltip: 'Mensajes',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ConversacionesScreen()),
-            ),
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar sesión',
-            onPressed: () => ref.read(authRepositoryProvider).signOut(),
+            onPressed: _cerrarSesion,
           ),
         ],
       ),
@@ -88,40 +137,318 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(
-              child: Text('No se pudieron cargar tus publicaciones.'),
+            return const EmptyState(
+              icon: Icons.error_outline_rounded,
+              mensaje: 'No se pudieron cargar tus publicaciones.',
             );
           }
           final publicaciones = snapshot.data ?? [];
-          if (publicaciones.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Todavía no publicaste nada.\nTocá "Publicar producto" para empezar.',
-                  textAlign: TextAlign.center,
+          final vistasTotales = publicaciones.fold<int>(
+            0,
+            (suma, p) => suma + p.vistas,
+          );
+          final activas = publicaciones
+              .where((p) => p.estado == EstadoPublicacion.disponible)
+              .length;
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            children: [
+              if (usuario != null) ...[
+                _TarjetaPerfil(usuario: usuario, onTap: _irAPerfil),
+                const SizedBox(height: 14),
+              ],
+              _BarraDeBusqueda(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const BusquedaScreen()),
                 ),
               ),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 96),
-            itemCount: publicaciones.length,
-            itemBuilder: (context, index) {
-              final publicacion = publicaciones[index];
-              return PublicacionListTile(
-                publicacion: publicacion,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        PublicacionDetailScreen(publicacion: publicacion),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _TarjetaAccion(
+                      icono: Icons.favorite_rounded,
+                      etiqueta: 'Favoritos',
+                      color: colorScheme.primaryContainer,
+                      colorTexto: colorScheme.onPrimaryContainer,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const FavoritosScreen()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _TarjetaAccion(
+                      icono: Icons.chat_bubble_rounded,
+                      etiqueta: 'Mensajes',
+                      color: colorScheme.secondaryContainer,
+                      colorTexto: colorScheme.onSecondaryContainer,
+                      onTap: _irAConversaciones,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _TarjetaAccion(
+                      icono: Icons.notifications_active_rounded,
+                      etiqueta: 'Alertas',
+                      color: colorScheme.primaryContainer,
+                      colorTexto: colorScheme.onPrimaryContainer,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AlertasScreen()),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (activas > 0 || vistasTotales > 0) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    if (activas > 0)
+                      Expanded(
+                        child: _TarjetaAccion(
+                          icono: Icons.inventory_2_rounded,
+                          etiqueta: 'Activas',
+                          valor: '$activas',
+                          color: colorScheme.primaryContainer,
+                          colorTexto: colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    if (activas > 0 && vistasTotales > 0)
+                      const SizedBox(width: 10),
+                    if (vistasTotales > 0)
+                      Expanded(
+                        child: _TarjetaAccion(
+                          icono: Icons.visibility_rounded,
+                          etiqueta: 'Vistas totales',
+                          valor: '$vistasTotales',
+                          color: colorScheme.secondaryContainer,
+                          colorTexto: colorScheme.onSecondaryContainer,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 24),
+              Text(
+                'Mis publicaciones',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (publicaciones.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Column(
+                    children: [
+                      const EmptyState(
+                        icon: Icons.inventory_2_outlined,
+                        mensaje: 'Todavía no publicaste nada.',
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _irAPublicar,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Publicar mi primer producto'),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ...publicaciones.map(
+                  (publicacion) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: PublicacionListTile(
+                      publicacion: publicacion,
+                      mostrarVistas: true,
+                      onTap: () => _verPublicacion(publicacion),
+                    ),
                   ),
                 ),
-              );
-            },
+            ],
           );
         },
       ),
+    );
+  }
+}
+
+/// Encabezado con la identidad de la usuaria (nombre, email, foto) y un
+/// acceso directo a "Mi perfil" — antes lo único que había era un ícono
+/// genérico en el AppBar, sin ningún dato a la vista, así que no quedaba
+/// claro que ahí se podía editar nombre/foto/contraseña/WhatsApp.
+class _TarjetaPerfil extends StatelessWidget {
+  const _TarjetaPerfil({required this.usuario, required this.onTap});
+
+  final AppUser usuario;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final nombre = usuario.nombre?.trim().isNotEmpty ?? false
+        ? usuario.nombre!
+        : usuario.email;
+
+    return Material(
+      color: colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                backgroundImage: usuario.fotoUrl != null
+                    ? NetworkImage(usuario.fotoUrl!)
+                    : null,
+                child: usuario.fotoUrl == null
+                    ? Icon(
+                        Icons.person_rounded,
+                        color: colorScheme.onSurfaceVariant,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nombre,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Ver y editar mi perfil',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BarraDeBusqueda extends StatelessWidget {
+  const _BarraDeBusqueda({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Row(
+            children: [
+              Icon(Icons.search_rounded, color: colorScheme.onSurfaceVariant),
+              const SizedBox(width: 12),
+              Text(
+                'Buscar ropa, uniformes, juguetes...',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tile único para acciones rápidas (Favoritos, Mensajes) y estadísticas
+/// (Activas, Vistas totales): mismo estilo visual — fondo de color sólido,
+/// ícono y texto centrados — para que el dashboard se vea coherente en vez
+/// de mezclar dos lenguajes visuales distintos. Si lleva [valor], se ve
+/// como estadística (con el número grande); si no, como acción (tocable).
+class _TarjetaAccion extends StatelessWidget {
+  const _TarjetaAccion({
+    required this.icono,
+    required this.etiqueta,
+    required this.color,
+    required this.colorTexto,
+    this.valor,
+    this.onTap,
+  });
+
+  final IconData icono;
+  final String etiqueta;
+  final Color color;
+  final Color colorTexto;
+  final String? valor;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final contenido = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icono, color: colorTexto),
+        if (valor != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            valor!,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: colorTexto,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+        const SizedBox(height: 6),
+        Text(
+          etiqueta,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: colorTexto,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(16),
+      child: onTap == null
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+              child: contenido,
+            )
+          : InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 8,
+                ),
+                child: contenido,
+              ),
+            ),
     );
   }
 }

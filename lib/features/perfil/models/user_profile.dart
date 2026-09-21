@@ -3,18 +3,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 enum EstadoVerificacion {
   noVerificado,
   pendiente,
-  verificado;
+  verificado,
+  rechazado;
 
   String get valorFirestore => switch (this) {
     EstadoVerificacion.noVerificado => 'no_verificado',
     EstadoVerificacion.pendiente => 'pendiente',
     EstadoVerificacion.verificado => 'verificado',
+    EstadoVerificacion.rechazado => 'rechazado',
   };
 
   static EstadoVerificacion desdeFirestore(String valor) {
     return switch (valor) {
       'pendiente' => EstadoVerificacion.pendiente,
       'verificado' => EstadoVerificacion.verificado,
+      'rechazado' => EstadoVerificacion.rechazado,
       _ => EstadoVerificacion.noVerificado,
     };
   }
@@ -26,26 +29,39 @@ class UserProfile {
     required this.nombre,
     required this.email,
     this.fotoUrl,
+    this.telefono,
     this.estadoVerificacion = EstadoVerificacion.noVerificado,
     this.calificacionPromedio = 0,
     this.cantidadTransacciones = 0,
     this.fechaRegistro,
+    this.kycSessionId,
   });
 
   final String uid;
   final String nombre;
   final String email;
   final String? fotoUrl;
+
+  /// Número de WhatsApp, cargado por la propia dueña del perfil desde "Mi
+  /// perfil". Nunca se comparte automáticamente: recién se expone a la otra
+  /// parte de un trato cuando ella misma elige compartirlo en el chat (ver
+  /// [[chat_screen]]), y solo para ese trato puntual.
+  final String? telefono;
   final EstadoVerificacion estadoVerificacion;
   final double calificacionPromedio;
   final int cantidadTransacciones;
   final DateTime? fechaRegistro;
+
+  /// Referencia de la sesión de verificación de identidad (Didit) — solo
+  /// un id opaco, no datos personales. Lo escribe únicamente el backend.
+  final String? kycSessionId;
 
   Map<String, dynamic> toFirestore() {
     return {
       'nombre': nombre,
       'email': email,
       'fotoUrl': fotoUrl,
+      'telefono': telefono,
       'estadoVerificacion': estadoVerificacion.valorFirestore,
       'calificacionPromedio': calificacionPromedio,
       'cantidadTransacciones': cantidadTransacciones,
@@ -59,6 +75,7 @@ class UserProfile {
       nombre: data['nombre'] as String? ?? '',
       email: data['email'] as String? ?? '',
       fotoUrl: data['fotoUrl'] as String?,
+      telefono: data['telefono'] as String?,
       estadoVerificacion: EstadoVerificacion.desdeFirestore(
         data['estadoVerificacion'] as String? ?? 'no_verificado',
       ),
@@ -68,6 +85,7 @@ class UserProfile {
       fechaRegistro: fechaRegistroRaw is Timestamp
           ? fechaRegistroRaw.toDate()
           : null,
+      kycSessionId: data['kycSessionId'] as String?,
     );
   }
 }

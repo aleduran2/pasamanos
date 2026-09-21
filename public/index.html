@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pasamanos</title>
+  <meta name="description" content="Pasamanos: marketplace para comprar y vender ropa, uniformes, juguetes y libros de niños entre familias de La Plata." />
+  <style>
+    :root {
+      color-scheme: light;
+      --primario: #2557d6;
+      --texto: #1c1b1f;
+      --fondo: #fafafa;
+      --superficie: #ffffff;
+      --borde: #e4e2e6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--fondo);
+      color: var(--texto);
+      line-height: 1.5;
+    }
+    header {
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--primario);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 18px;
+    }
+    header span {
+      font-weight: 800;
+      font-size: 20px;
+    }
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 24px 24px 64px;
+    }
+    h1 {
+      font-size: clamp(28px, 5vw, 40px);
+      font-weight: 900;
+      margin: 16px 0 8px;
+    }
+    p.lead {
+      font-size: 18px;
+      color: #49454f;
+      margin: 0 0 32px;
+    }
+    .card {
+      background: var(--superficie);
+      border: 1px solid var(--borde);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-size: 16px;
+      margin: 0 0 6px;
+    }
+    .card p {
+      margin: 0;
+      color: #49454f;
+      font-size: 15px;
+    }
+    footer {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 0 24px 40px;
+      color: #79747e;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">P</div>
+    <span>Pasamanos</span>
+  </header>
+  <main>
+    <h1>Ropa y artículos de tus hijos, de mano en mano.</h1>
+    <p class="lead">
+      Pasamanos conecta familias de La Plata para comprar y vender ropa,
+      uniformes, calzado, juguetes y libros infantiles ya usados, en buen
+      estado y a un precio justo.
+    </p>
+    <div class="card">
+      <h2>Chat interno y trato seguro</h2>
+      <p>Cada acuerdo se coordina dentro de la app, con verificación de identidad para tratos de mayor monto.</p>
+    </div>
+    <div class="card">
+      <h2>Pagos con Mercado Pago</h2>
+      <p>Las vendedoras cobran directo a su cuenta de Mercado Pago, sin manejar efectivo entre desconocidos.</p>
+    </div>
+    <div class="card">
+      <h2>Pensado para la comunidad escolar</h2>
+      <p>Buscá por colegio, barrio, talle y edad — pensado para las familias de La Plata.</p>
+    </div>
+  </main>
+  <footer>
+    © 2026 Pasamanos. Aplicación en desarrollo.
+  </footer>
+</body>
+</html>

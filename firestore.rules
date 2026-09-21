@@ -7,25 +7,62 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Valida una calificación nueva contra el acuerdo que dice calificar:
+    // que ese acuerdo esté completado, que quien la crea haya sido parte
+    // de él, y que el destinatario sea justo la otra parte (nunca una
+    // misma).
+    function esCalificacionValida(datos) {
+      let acuerdo = get(/databases/$(database)/documents/acuerdos/$(datos.acuerdoId)).data;
+      return acuerdo.estado == 'completado'
+        && (request.auth.uid == acuerdo.compradorId || request.auth.uid == acuerdo.vendedorId)
+        && datos.destinatarioId == (request.auth.uid == acuerdo.compradorId
+          ? acuerdo.vendedorId
+          : acuerdo.compradorId);
+    }
+
     // Perfil de usuario: solo su dueño puede leerlo o escribirlo. Ninguna
     // pantalla actual muestra el perfil de otro usuario (los listados de
     // publicaciones/conversaciones ya guardan por separado los datos
     // públicos que necesitan, como el título de la publicación).
     match /users/{uid} {
-      allow read, write: if estaAutenticado() && request.auth.uid == uid;
+      allow read: if estaAutenticado() && request.auth.uid == uid;
+      allow create: if estaAutenticado() && request.auth.uid == uid;
+      // El estado de verificación de identidad (referencia a su sesión de
+      // Didit) y la reputación (calificación/cantidad de transacciones) los
+      // escribe únicamente el backend — si el cliente pudiera tocarlos,
+      // cualquiera podría auto-marcarse "verificado" o inflar su propia
+      // calificación sin que nadie la haya calificado de verdad.
+      allow update: if estaAutenticado() && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny([
+            'estadoVerificacion', 'kycSessionId',
+            'calificacionPromedio', 'cantidadTransacciones',
+          ]);
+      allow delete: if false;
+
+      // Favoritos: solo la dueña de la cuenta puede ver o modificar su
+      // propia lista de publicaciones guardadas.
+      match /favoritos/{publicacionId} {
+        allow read, write: if estaAutenticado() && request.auth.uid == uid;
+      }
     }
 
     // Publicaciones: cualquier usuario autenticado puede verlas (catálogo
-    // público), pero solo la vendedora puede crearlas o modificarlas
-    // (incluye el pasaje a "reservado" al cerrar un acuerdo). Sin borrado
-    // por ahora, no existe esa función en la app.
+    // público), pero solo la vendedora puede crearlas, editarlas o
+    // borrarlas.
     match /publicaciones/{pubId} {
       allow read: if estaAutenticado();
       allow create: if estaAutenticado()
         && request.resource.data.vendedorId == request.auth.uid;
+      // La vendedora puede modificar cualquier campo (incluye el pasaje a
+      // "reservado"/"vendido" y la edición de datos). Cualquier otra
+      // usuaria autenticada puede sumar una vista, pero solo tocando ese
+      // campo — nada más.
       allow update: if estaAutenticado()
+        && (resource.data.vendedorId == request.auth.uid
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vistas']));
+      allow delete: if estaAutenticado()
         && resource.data.vendedorId == request.auth.uid;
-      allow delete: if false;
     }
 
     // Conversaciones: solo los dos participantes pueden verlas o
@@ -65,14 +102,88 @@ service cloud.firestore {
 
     // Acuerdos: solo comprador y vendedora involucrados pueden verlos.
     // Se crean únicamente desde la transacción de cerrarAcuerdo, siempre
-    // ejecutada por la vendedora. Sin edición ni borrado por ahora.
+    // ejecutada por la vendedora. Después, cada quien puede tocar solo dos
+    // cosas: la vendedora el estado (completado al vender, cancelado si la
+    // reserva no prospera), y cada parte su propio teléfono de WhatsApp
+    // para compartirlo con la otra — nunca el ajeno. Sin borrado.
     match /acuerdos/{acuerdoId} {
       allow read: if estaAutenticado()
         && (request.auth.uid == resource.data.compradorId
           || request.auth.uid == resource.data.vendedorId);
       allow create: if estaAutenticado()
         && request.auth.uid == request.resource.data.vendedorId;
+      allow update: if estaAutenticado()
+        && (request.auth.uid == resource.data.compradorId
+          || request.auth.uid == resource.data.vendedorId)
+        && (
+          (request.auth.uid == resource.data.vendedorId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado']))
+          || (request.auth.uid == resource.data.compradorId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['telefonoComprador']))
+          || (request.auth.uid == resource.data.vendedorId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['telefonoVendedor']))
+        );
+      allow delete: if false;
+    }
+
+    // Mercado Pago: si una vendedora conectó su cuenta o no. Solo se
+    // guarda acá el estado (para que la app pueda mostrar "conectada"),
+    // nunca el access_token — eso vive en `mercadopago_privado`, que ni
+    // siquiera la propia dueña puede leer desde el cliente. Ambas
+    // colecciones las escribe únicamente el backend (Cloud Functions con
+    // permisos de administrador, que no pasan por estas reglas).
+    match /mercadopago/{uid} {
+      allow read: if estaAutenticado() && request.auth.uid == uid;
+      allow write: if false;
+    }
+    match /mercadopago_privado/{uid} {
+      allow read, write: if false;
+    }
+
+    // Perfil público: el único recorte de otra usuaria que cualquiera puede
+    // leer (para mostrar su reputación en una publicación). La dueña carga
+    // su nombre/foto al registrarse, pero la calificación/cantidad de
+    // transacciones las escribe únicamente el backend al recalcularlas —
+    // igual que en `users`, para que nadie pueda inflar su propia
+    // reputación.
+    match /perfiles_publicos/{uid} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado() && request.auth.uid == uid;
+      allow update: if estaAutenticado() && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['calificacionPromedio', 'cantidadTransacciones']);
+      allow delete: if false;
+    }
+
+    // Calificaciones: una por trato completado y por autora (el id
+    // determinístico `{acuerdoId}_{autorId}` hace que un segundo intento
+    // ya no sea una "creación" sino una edición, y las ediciones están
+    // bloqueadas). Solo puede calificar quien participó del acuerdo, sobre
+    // un acuerdo ya completado, y solo a la otra parte — nunca a sí misma.
+    // Inmutables una vez creadas.
+    match /calificaciones/{calificacionId} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado()
+        && request.resource.data.autorId == request.auth.uid
+        && request.resource.data.puntaje is int
+        && request.resource.data.puntaje >= 1
+        && request.resource.data.puntaje <= 5
+        && esCalificacionValida(request.resource.data);
       allow update, delete: if false;
+    }
+
+    // Alertas por categoría + talle: solo su dueña puede verlas, crearlas o
+    // borrarlas. El id es determinístico (uid + categoría + talle, armado
+    // del lado del cliente) así que "crear" y "editar" la misma alerta
+    // caen en el mismo documento sin duplicar — de ahí que `update` esté
+    // permitido, pero solo si sigue siendo dueña de esa alerta.
+    match /alertas/{alertaId} {
+      allow read: if estaAutenticado() && resource.data.uid == request.auth.uid;
+      allow create: if estaAutenticado() && request.resource.data.uid == request.auth.uid;
+      allow update: if estaAutenticado()
+        && request.auth.uid == resource.data.uid
+        && request.resource.data.uid == resource.data.uid;
+      allow delete: if estaAutenticado() && resource.data.uid == request.auth.uid;
     }
 
     // Todo lo demás, denegado por defecto.

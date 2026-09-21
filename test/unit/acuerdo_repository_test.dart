@@ -75,7 +75,7 @@ void main() {
     final mensajes = await chatRepository.mensajes(conversacionId).first;
     expect(mensajes, hasLength(1));
     expect(mensajes.first.tipo, TipoMensaje.sistema);
-    expect(mensajes.first.texto, contains('4500'));
+    expect(mensajes.first.texto, contains('4.500'));
   });
 
   test(
@@ -123,4 +123,114 @@ void main() {
     );
     expect(acuerdo, isNull);
   });
+
+  test(
+    'marcarVendido pasa la publicación a vendido y el acuerdo a completado',
+    () async {
+      final publicacionId = await crearPublicacionDisponible();
+      await chatRepository.obtenerOCrear(
+        publicacionId: publicacionId,
+        publicacionTitulo: 'Guardapolvo talle 8',
+        compradorId: 'uid-compradora',
+        vendedorId: 'uid-vendedora',
+      );
+      final conversacionId = '${publicacionId}_uid-compradora';
+      await acuerdoRepository.cerrarAcuerdo(
+        conversacionId: conversacionId,
+        publicacionId: publicacionId,
+        compradorId: 'uid-compradora',
+        vendedorId: 'uid-vendedora',
+        precioAcordado: 4500,
+      );
+
+      await acuerdoRepository.marcarVendido(publicacionId);
+
+      final publicacion = await publicacionRepository.obtenerPorId(
+        publicacionId,
+      );
+      expect(publicacion!.estado, EstadoPublicacion.vendido);
+
+      final acuerdo = await acuerdoRepository.obtenerPorConversacion(
+        conversacionId,
+      );
+      expect(acuerdo!.estado, EstadoAcuerdo.completado);
+
+      final mensajes = await chatRepository.mensajes(conversacionId).first;
+      expect(mensajes, hasLength(2));
+      expect(mensajes.last.tipo, TipoMensaje.sistema);
+    },
+  );
+
+  test(
+    'cancelarReserva devuelve la publicación a disponible y cancela el acuerdo',
+    () async {
+      final publicacionId = await crearPublicacionDisponible();
+      await chatRepository.obtenerOCrear(
+        publicacionId: publicacionId,
+        publicacionTitulo: 'Guardapolvo talle 8',
+        compradorId: 'uid-compradora',
+        vendedorId: 'uid-vendedora',
+      );
+      final conversacionId = '${publicacionId}_uid-compradora';
+      await acuerdoRepository.cerrarAcuerdo(
+        conversacionId: conversacionId,
+        publicacionId: publicacionId,
+        compradorId: 'uid-compradora',
+        vendedorId: 'uid-vendedora',
+        precioAcordado: 4500,
+      );
+
+      await acuerdoRepository.cancelarReserva(publicacionId);
+
+      final publicacion = await publicacionRepository.obtenerPorId(
+        publicacionId,
+      );
+      expect(publicacion!.estado, EstadoPublicacion.disponible);
+
+      final acuerdo = await acuerdoRepository.obtenerPorConversacion(
+        conversacionId,
+      );
+      expect(acuerdo!.estado, EstadoAcuerdo.cancelado);
+    },
+  );
+
+  test(
+    'compartirTelefono guarda el número en el campo propio y avisa en el chat',
+    () async {
+      final publicacionId = await crearPublicacionDisponible();
+      await chatRepository.obtenerOCrear(
+        publicacionId: publicacionId,
+        publicacionTitulo: 'Guardapolvo talle 8',
+        compradorId: 'uid-compradora',
+        vendedorId: 'uid-vendedora',
+      );
+      final conversacionId = '${publicacionId}_uid-compradora';
+      final acuerdo = await acuerdoRepository.cerrarAcuerdo(
+        conversacionId: conversacionId,
+        publicacionId: publicacionId,
+        compradorId: 'uid-compradora',
+        vendedorId: 'uid-vendedora',
+        precioAcordado: 4500,
+      );
+
+      await acuerdoRepository.compartirTelefono(
+        acuerdoId: acuerdo.id,
+        conversacionId: conversacionId,
+        esComprador: true,
+        emisorId: 'uid-compradora',
+        telefono: '2211234567',
+      );
+
+      final acuerdoActualizado = await acuerdoRepository.obtenerPorConversacion(
+        conversacionId,
+      );
+      expect(acuerdoActualizado!.telefonoComprador, '2211234567');
+      expect(acuerdoActualizado.telefonoVendedor, isNull);
+
+      final mensajes = await chatRepository.mensajes(conversacionId).first;
+      expect(mensajes, hasLength(2));
+      expect(mensajes.last.emisorId, 'uid-compradora');
+      expect(mensajes.last.tipo, TipoMensaje.sistema);
+    },
+  );
 }

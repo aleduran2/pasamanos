@@ -53,3 +53,7 @@ app.*.map.json
 # Estado local de herramientas de IDE/asistentes, no es parte del proyecto
 .claude/
 
+# Caché local del Firebase CLI (historial de deploys, etc.), no es parte
+# del proyecto en sí.
+.firebase/
+

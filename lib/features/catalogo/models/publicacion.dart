@@ -1,16 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart' show IconData, Icons;
 
 enum Categoria {
   ropa,
   uniformes,
+  calzado,
   juguetes,
-  libros;
+  libros,
+  accesorios,
+  bebe;
 
   String get etiqueta => switch (this) {
     Categoria.ropa => 'Ropa',
     Categoria.uniformes => 'Uniformes',
+    Categoria.calzado => 'Calzado',
     Categoria.juguetes => 'Juguetes',
     Categoria.libros => 'Libros',
+    Categoria.accesorios => 'Accesorios',
+    Categoria.bebe => 'Bebé / Puericultura',
   };
 
   String get valorFirestore => name;
@@ -34,6 +41,13 @@ enum EtapaEdad {
     EtapaEdad.jardin => 'Jardín / Inicial (3 a 5 años)',
     EtapaEdad.primaria => 'Primaria (6 a 12 años)',
     EtapaEdad.secundaria => 'Secundaria (13 a 18 años)',
+  };
+
+  IconData get icono => switch (this) {
+    EtapaEdad.bebe => Icons.child_friendly_rounded,
+    EtapaEdad.jardin => Icons.child_care_rounded,
+    EtapaEdad.primaria => Icons.backpack_rounded,
+    EtapaEdad.secundaria => Icons.school_rounded,
   };
 
   String get valorFirestore => name;
@@ -105,8 +119,11 @@ class Publicacion {
     required this.fotos,
     this.colegio,
     this.barrio,
+    this.talle,
+    this.colores = const [],
     this.estado = EstadoPublicacion.disponible,
     this.fechaPublicacion,
+    this.vistas = 0,
   });
 
   final String id;
@@ -119,8 +136,15 @@ class Publicacion {
   final FotosPublicacion fotos;
   final String? colegio;
   final String? barrio;
+  final String? talle;
+
+  /// Una prenda puede tener más de un color (ej. una remera a rayas), por
+  /// eso es una lista y no un solo valor — y así también se puede buscar
+  /// por "cualquiera de estos colores" en vez de uno exacto.
+  final List<String> colores;
   final EstadoPublicacion estado;
   final DateTime? fechaPublicacion;
+  final int vistas;
 
   Map<String, dynamic> toFirestore() {
     return {
@@ -133,7 +157,10 @@ class Publicacion {
       'fotos': fotos.toFirestore(),
       'colegio': colegio,
       'barrio': barrio,
+      'talle': talle,
+      'colores': colores,
       'estado': estado.valorFirestore,
+      'vistas': vistas,
     };
   }
 
@@ -152,10 +179,13 @@ class Publicacion {
       ),
       colegio: data['colegio'] as String?,
       barrio: data['barrio'] as String?,
+      talle: data['talle'] as String?,
+      colores: (data['colores'] as List?)?.cast<String>() ?? const [],
       estado: EstadoPublicacion.desdeFirestore(
         data['estado'] as String? ?? 'disponible',
       ),
       fechaPublicacion: fechaRaw is Timestamp ? fechaRaw.toDate() : null,
+      vistas: (data['vistas'] as num?)?.toInt() ?? 0,
     );
   }
 }

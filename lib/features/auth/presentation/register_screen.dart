@@ -51,14 +51,28 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Crear cuenta')),
+      appBar: AppBar(),
       body: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
         child: Form(
           key: _formKey,
           child: AutofillGroup(
             child: ListView(
               children: [
+                Text(
+                  'Creá tu cuenta',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Sumate a la comunidad de Pasamanos.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 28),
                 TextFormField(
                   controller: _nombreController,
                   autofillHints: const [AutofillHints.name],

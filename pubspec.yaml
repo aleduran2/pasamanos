@@ -45,6 +45,8 @@ dependencies:
   google_sign_in: ^7.2.0
   image_picker: ^1.2.3
   flutter_local_notifications: ^22.3.1
+  google_fonts: ^8.2.1
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
@@ -59,6 +61,7 @@ dev_dependencies:
   mocktail: ^1.0.5
   fake_cloud_firestore: ^4.2.0
   firebase_auth_mocks: ^0.15.2
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -104,3 +107,11 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  min_sdk_android: 24
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#2557D6"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"

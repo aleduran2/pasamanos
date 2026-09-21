@@ -23,7 +23,9 @@ class Conversacion {
     required this.vendedorId,
     this.estado = EstadoConversacion.activa,
     this.ultimoMensaje,
+    this.ultimoMensajeEmisorId,
     this.fechaUltimoMensaje,
+    this.leidoPor = const [],
   });
 
   final String id;
@@ -33,7 +35,16 @@ class Conversacion {
   final String vendedorId;
   final EstadoConversacion estado;
   final String? ultimoMensaje;
+  final String? ultimoMensajeEmisorId;
   final DateTime? fechaUltimoMensaje;
+
+  /// Quiénes ya vieron el último mensaje. Se reinicia a `[emisorId]` cada
+  /// vez que llega un mensaje nuevo, y se le suma la otra persona cuando
+  /// abre la conversación — así la lista de conversaciones puede marcar
+  /// cuáles tienen algo nuevo sin leer.
+  final List<String> leidoPor;
+
+  bool noLeidoPor(String uid) => !leidoPor.contains(uid);
 
   Map<String, dynamic> toFirestore() {
     return {
@@ -44,6 +55,7 @@ class Conversacion {
       'participantes': [compradorId, vendedorId],
       'estado': estado.valorFirestore,
       'ultimoMensaje': ultimoMensaje,
+      'leidoPor': leidoPor,
     };
   }
 
@@ -59,7 +71,9 @@ class Conversacion {
         data['estado'] as String? ?? 'activa',
       ),
       ultimoMensaje: data['ultimoMensaje'] as String?,
+      ultimoMensajeEmisorId: data['ultimoMensajeEmisorId'] as String?,
       fechaUltimoMensaje: fechaRaw is Timestamp ? fechaRaw.toDate() : null,
+      leidoPor: (data['leidoPor'] as List?)?.cast<String>() ?? const [],
     );
   }
 }

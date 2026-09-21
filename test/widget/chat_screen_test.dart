@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:pasamanos/features/acuerdos/data/acuerdo_repository.dart';
+import 'package:pasamanos/features/acuerdos/providers/acuerdo_providers.dart';
 import 'package:pasamanos/features/auth/data/auth_repository.dart';
 import 'package:pasamanos/features/auth/models/app_user.dart';
 import 'package:pasamanos/features/auth/providers/auth_providers.dart';
@@ -13,6 +15,8 @@ import 'package:pasamanos/features/chat/models/conversacion.dart';
 import 'package:pasamanos/features/chat/models/mensaje.dart';
 import 'package:pasamanos/features/chat/presentation/chat_screen.dart';
 import 'package:pasamanos/features/chat/providers/chat_providers.dart';
+import 'package:pasamanos/features/perfil/data/user_profile_repository.dart';
+import 'package:pasamanos/features/perfil/providers/perfil_providers.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -20,10 +24,16 @@ class _MockChatRepository extends Mock implements ChatRepository {}
 
 class _MockPublicacionRepository extends Mock implements PublicacionRepository {}
 
+class _MockAcuerdoRepository extends Mock implements AcuerdoRepository {}
+
+class _MockUserProfileRepository extends Mock implements UserProfileRepository {}
+
 void main() {
   late _MockAuthRepository mockAuthRepository;
   late _MockChatRepository mockChatRepository;
   late _MockPublicacionRepository mockPublicacionRepository;
+  late _MockAcuerdoRepository mockAcuerdoRepository;
+  late _MockUserProfileRepository mockUserProfileRepository;
 
   const usuarioCompradora = AppUser(
     uid: 'uid-compradora',
@@ -56,6 +66,8 @@ void main() {
     mockAuthRepository = _MockAuthRepository();
     mockChatRepository = _MockChatRepository();
     mockPublicacionRepository = _MockPublicacionRepository();
+    mockAcuerdoRepository = _MockAcuerdoRepository();
+    mockUserProfileRepository = _MockUserProfileRepository();
     when(() => mockAuthRepository.currentUser).thenReturn(usuarioCompradora);
     when(
       () => mockChatRepository.mensajes('pub-1_uid-compradora'),
@@ -63,6 +75,15 @@ void main() {
     when(
       () => mockPublicacionRepository.obtenerPorId('pub-1'),
     ).thenAnswer((_) async => publicacion);
+    when(
+      () => mockChatRepository.marcarComoLeido(any(), any()),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockAcuerdoRepository.obtenerPorConversacion(any()),
+    ).thenAnswer((_) async => null);
+    when(
+      () => mockUserProfileRepository.obtenerPorId(any()),
+    ).thenAnswer((_) async => null);
   });
 
   Future<void> pumpPantalla(WidgetTester tester) async {
@@ -73,6 +94,10 @@ void main() {
           chatRepositoryProvider.overrideWithValue(mockChatRepository),
           publicacionRepositoryProvider.overrideWithValue(
             mockPublicacionRepository,
+          ),
+          acuerdoRepositoryProvider.overrideWithValue(mockAcuerdoRepository),
+          userProfileRepositoryProvider.overrideWithValue(
+            mockUserProfileRepository,
           ),
         ],
         child: const MaterialApp(home: ChatScreen(conversacion: conversacion)),
@@ -109,7 +134,7 @@ void main() {
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), 'Hola, ¿sigue disponible?');
-    await tester.tap(find.byIcon(Icons.send));
+    await tester.tap(find.byIcon(Icons.send_rounded));
     await tester.pump();
 
     verify(

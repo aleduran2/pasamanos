@@ -11,10 +11,25 @@ service firebase.storage {
     // en Firestore.
     match /publicaciones/{vendedorId}/{publicacionId}/{archivo} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
         && request.auth.uid == vendedorId
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      // Aparte de "write": una eliminación no manda `request.resource`, así
+      // que las condiciones de tamaño/tipo de arriba no aplican acá.
+      allow delete: if request.auth != null && request.auth.uid == vendedorId;
+    }
+
+    // Foto de perfil: una sola por cuenta (siempre el mismo nombre de
+    // archivo, se pisa sola). Lectura pública (autenticada) porque el
+    // resto de la comunidad la ve en las publicaciones.
+    match /avatares/{uid}/{archivo} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
     // Todo lo demás, denegado por defecto.

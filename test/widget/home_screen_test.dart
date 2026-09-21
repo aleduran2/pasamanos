@@ -90,6 +90,6 @@ void main() {
     await pumpHomeScreen(tester);
 
     expect(find.text('Guardapolvo talle 8'), findsOneWidget);
-    expect(find.text('\$5000'), findsOneWidget);
+    expect(find.text('\$ 5.000'), findsOneWidget);
   });
 }

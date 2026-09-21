@@ -68,70 +68,100 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Ingresar')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: AutofillGroup(
-            child: ListView(
-              children: [
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (valor) {
-                    if (valor == null || !valor.contains('@')) {
-                      return 'Ingresá un email válido';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  autofillHints: const [AutofillHints.password],
-                  decoration: const InputDecoration(labelText: 'Contraseña'),
-                  validator: (valor) {
-                    if (valor == null || valor.length < 6) {
-                      return 'La contraseña debe tener al menos 6 caracteres';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: _cargando ? null : _iniciarSesion,
-                  child: _cargando
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Ingresar'),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: _cargando ? null : _continuarConGoogle,
-                  child: const Text('Continuar con Google'),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: _cargando
-                      ? null
-                      : () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterScreen(),
-                            ),
-                          );
-                        },
-                  child: const Text('¿No tenés cuenta? Registrate'),
-                ),
-              ],
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: Form(
+            key: _formKey,
+            child: AutofillGroup(
+              child: ListView(
+                children: [
+                  const SizedBox(height: 24),
+                  Container(
+                    width: 72,
+                    height: 72,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Icon(
+                      Icons.diversity_3_rounded,
+                      size: 36,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Pasamanos',
+                    style: Theme.of(context).textTheme.headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Ropa, uniformes y juguetes de chicos,\nentre familias de La Plata.',
+                    style: Theme.of(context).textTheme.bodyMedium
+                        ?.copyWith(color: colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 32),
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: const InputDecoration(labelText: 'Email'),
+                    validator: (valor) {
+                      if (valor == null || !valor.contains('@')) {
+                        return 'Ingresá un email válido';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    autofillHints: const [AutofillHints.password],
+                    decoration: const InputDecoration(labelText: 'Contraseña'),
+                    validator: (valor) {
+                      if (valor == null || valor.length < 6) {
+                        return 'La contraseña debe tener al menos 6 caracteres';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: _cargando ? null : _iniciarSesion,
+                    child: _cargando
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Ingresar'),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: _cargando ? null : _continuarConGoogle,
+                    child: const Text('Continuar con Google'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _cargando
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const RegisterScreen(),
+                              ),
+                            );
+                          },
+                    child: const Text('¿No tenés cuenta? Registrate'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
