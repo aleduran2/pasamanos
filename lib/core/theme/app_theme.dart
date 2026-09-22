@@ -23,6 +23,8 @@ class AppTheme {
 
   static const Color _primario = Color(0xFF2557D6);
   static const Color _onPrimario = Color(0xFFFFFFFF);
+  static const Color _primarioContainer = Color(0xFFDCE6FF);
+  static const Color _onPrimarioContainer = Color(0xFF0A2A66);
 
   static const Color _secundario = Color(0xFFF4623A);
   static const Color _onSecundario = Color(0xFF2A1206);
@@ -41,15 +43,19 @@ class AppTheme {
 
   /// Mismo motivo que el comentario de arriba, pero acá importa aclarar
   /// que hay que aplicar esto en los DOS temas (claro y oscuro) por
-  /// igual: quedó aplicado solo en el claro en una iteración anterior, y
-  /// el resultado fue que en modo oscuro `primary`/`secondaryContainer`
-  /// quedaban con el tono violeta que M3 deriva solo de la semilla —
-  /// visible sobre todo en checkboxes y botones tonales, que usan esos
-  /// roles como color de relleno.
+  /// igual, y a TODOS los roles que se usan en algún lado de la app —
+  /// `primaryContainer` quedó afuera en una iteración anterior (solo se
+  /// habían cubierto `primary`/`secondary`/`secondaryContainer`) y seguía
+  /// mostrando el violeta que M3 deriva de la semilla en las tarjetas de
+  /// Home, el ícono de login, el badge de no leídos y los chips del
+  /// diálogo de alertas — todos esos usan `primaryContainer` directo, sin
+  /// pasar por ningún otro theme que ya estuviera corregido.
   static ColorScheme _conMarcaPropia(ColorScheme base) {
     return base.copyWith(
       primary: _primario,
       onPrimary: _onPrimario,
+      primaryContainer: _primarioContainer,
+      onPrimaryContainer: _onPrimarioContainer,
       secondary: _secundario,
       onSecondary: _onSecundario,
       secondaryContainer: _secundarioContainer,

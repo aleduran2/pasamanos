@@ -35,6 +35,7 @@ class UserProfile {
     this.cantidadTransacciones = 0,
     this.fechaRegistro,
     this.kycSessionId,
+    this.notificacionesActivas = true,
   });
 
   final String uid;
@@ -56,6 +57,13 @@ class UserProfile {
   /// un id opaco, no datos personales. Lo escribe únicamente el backend.
   final String? kycSessionId;
 
+  /// Preferencia propia de la usuaria, independiente del permiso del
+  /// sistema operativo: Android no deja que una app "revoque" un permiso
+  /// ya otorgado, así que apagar esto es lo que realmente controla si le
+  /// llegan notificaciones — se logra borrando sus tokens de FCM (ver
+  /// [[fcm_token_service]]), no tocando el permiso en sí.
+  final bool notificacionesActivas;
+
   Map<String, dynamic> toFirestore() {
     return {
       'nombre': nombre,
@@ -65,6 +73,7 @@ class UserProfile {
       'estadoVerificacion': estadoVerificacion.valorFirestore,
       'calificacionPromedio': calificacionPromedio,
       'cantidadTransacciones': cantidadTransacciones,
+      'notificacionesActivas': notificacionesActivas,
     };
   }
 
@@ -86,6 +95,7 @@ class UserProfile {
           ? fechaRegistroRaw.toDate()
           : null,
       kycSessionId: data['kycSessionId'] as String?,
+      notificacionesActivas: data['notificacionesActivas'] as bool? ?? true,
     );
   }
 }

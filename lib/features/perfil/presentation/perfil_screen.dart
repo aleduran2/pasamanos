@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,9 +9,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/kyc.dart';
+import '../../../core/utils/telefono.dart';
 import '../../auth/presentation/auth_error_messages.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../catalogo/providers/catalogo_providers.dart';
+import '../../notificaciones/providers/notificaciones_providers.dart';
 import '../models/user_profile.dart';
 import '../providers/perfil_providers.dart';
 
@@ -29,7 +32,24 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
   bool _guardandoTelefono = false;
   bool _guardandoNombre = false;
   bool _subiendoFoto = false;
+  bool _pidiendoNotificaciones = false;
+  // Preferencia propia de la usuaria (Firestore) — independiente del
+  // permiso del sistema operativo, que Android no deja "apagar" desde la
+  // app una vez otorgado.
+  bool _prefiereNotificaciones = true;
   EstadoVerificacion _estadoVerificacion = EstadoVerificacion.noVerificado;
+  AuthorizationStatus _estadoNotificaciones = AuthorizationStatus.notDetermined;
+
+  /// Lo que el switch de "Mi perfil" muestra: solo aparece prendido si las
+  /// dos condiciones se cumplen — la usuaria las quiere Y el sistema
+  /// operativo efectivamente las autorizó. Si cualquiera de las dos
+  /// falla, no le va a llegar ninguna notificación, así que mostrarlo
+  /// prendido igual sería engañoso.
+  bool get _notificacionesActivas =>
+      _prefiereNotificaciones &&
+      (_estadoNotificaciones == AuthorizationStatus.authorized ||
+          _estadoNotificaciones == AuthorizationStatus.provisional);
+  String? _errorTelefono;
   final _telefonoController = TextEditingController();
   final _nombreController = TextEditingController();
 
@@ -65,6 +85,7 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
     final resultados = await Future.wait([
       ref.read(mercadoPagoRepositoryProvider).estaConectada(usuario.uid),
       ref.read(userProfileRepositoryProvider).obtenerPorId(usuario.uid),
+      ref.read(fcmTokenServiceProvider).obtenerEstadoPermiso(),
     ]);
     if (mounted) {
       setState(() {
@@ -73,8 +94,70 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
         _estadoVerificacion =
             perfil?.estadoVerificacion ?? EstadoVerificacion.noVerificado;
         _telefonoController.text = perfil?.telefono ?? '';
+        _prefiereNotificaciones = perfil?.notificacionesActivas ?? true;
+        _estadoNotificaciones = resultados[2] as AuthorizationStatus;
         _cargando = false;
       });
+    }
+  }
+
+  Future<void> _cambiarNotificaciones(bool encender) async {
+    final usuario = ref.read(authRepositoryProvider).currentUser;
+    if (usuario == null) return;
+
+    setState(() => _pidiendoNotificaciones = true);
+    try {
+      final servicio = ref.read(fcmTokenServiceProvider);
+      final perfiles = ref.read(userProfileRepositoryProvider);
+
+      if (!encender) {
+        // Android no permite que una app "retire" un permiso ya
+        // otorgado — apagar de verdad las notificaciones significa
+        // borrar los tokens, para que el backend no tenga a dónde
+        // mandarlas, y guardar la preferencia para que no se reactiven
+        // solas en el próximo login (ver `registrarToken`).
+        await servicio.desactivar(usuario.uid);
+        await perfiles.actualizarNotificaciones(
+          uid: usuario.uid,
+          activas: false,
+        );
+        if (mounted) setState(() => _prefiereNotificaciones = false);
+        return;
+      }
+
+      var estado = _estadoNotificaciones;
+      if (estado != AuthorizationStatus.authorized &&
+          estado != AuthorizationStatus.provisional) {
+        estado = await servicio.pedirPermiso();
+      }
+
+      // Guarda la preferencia ANTES de registrar el token: `registrarToken`
+      // arranca chequeando este mismo campo, así que si siguiera en false
+      // se cortaría solo y no llegaría a guardar nada.
+      await perfiles.actualizarNotificaciones(uid: usuario.uid, activas: true);
+
+      if (estado == AuthorizationStatus.authorized ||
+          estado == AuthorizationStatus.provisional) {
+        await servicio.registrarToken(usuario.uid);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo activar: activalas desde la configuración del '
+              'sistema (Ajustes > Apps > Pasamanos > Notificaciones).',
+            ),
+          ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _estadoNotificaciones = estado;
+          _prefiereNotificaciones = true;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _pidiendoNotificaciones = false);
     }
   }
 
@@ -83,6 +166,11 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
     if (usuario == null) return;
     final telefono = _telefonoController.text.trim();
     if (telefono.isEmpty) return;
+    if (!esTelefonoValido(telefono)) {
+      setState(() => _errorTelefono = mensajeTelefonoInvalido);
+      return;
+    }
+    setState(() => _errorTelefono = null);
 
     setState(() => _guardandoTelefono = true);
     try {
@@ -493,8 +581,14 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                         child: TextField(
                           controller: _telefonoController,
                           keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
+                          onChanged: (_) {
+                            if (_errorTelefono != null) {
+                              setState(() => _errorTelefono = null);
+                            }
+                          },
+                          decoration: InputDecoration(
                             hintText: 'Ej: 2211234567',
+                            errorText: _errorTelefono,
                           ),
                         ),
                       ),
@@ -626,6 +720,36 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                   ),
               ],
             ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: _cargando
+                ? const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : SwitchListTile(
+                    secondary: Icon(
+                      Icons.notifications_outlined,
+                      color: colorScheme.primary,
+                    ),
+                    title: const Text('Notificaciones'),
+                    subtitle: const Text(
+                      'Avisos de mensajes nuevos y tratos cerrados.',
+                    ),
+                    value: _notificacionesActivas,
+                    onChanged: _pidiendoNotificaciones
+                        ? null
+                        : _cambiarNotificaciones,
+                  ),
           ),
         ],
       ),

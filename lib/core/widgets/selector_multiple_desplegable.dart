@@ -30,8 +30,21 @@ class SelectorMultipleDesplegable extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  const SizedBox(height: 10),
+                  // Tirador visual: da un margen claro arriba de todo y
+                  // marca que esto es una hoja que se puede arrastrar,
+                  // sin depender solo del padding para que no se vea
+                  // pegado al borde.
+                  Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 12, 8),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -41,8 +54,14 @@ class SelectorMultipleDesplegable extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
-                        TextButton(
+                        FilledButton.tonal(
                           onPressed: () => Navigator.of(context).pop(temporal),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 38),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                            ),
+                          ),
                           child: const Text('Listo'),
                         ),
                       ],

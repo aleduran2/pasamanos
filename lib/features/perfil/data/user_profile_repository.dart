@@ -27,6 +27,12 @@ abstract class UserProfileRepository {
   /// Cambia la foto de perfil, igual que el nombre: en `users` y en la
   /// copia pública.
   Future<void> actualizarFoto({required String uid, required String fotoUrl});
+
+  /// Prende/apaga la preferencia de notificaciones de la usuaria.
+  Future<void> actualizarNotificaciones({
+    required String uid,
+    required bool activas,
+  });
 }
 
 class FirestoreUserProfileRepository implements UserProfileRepository {
@@ -129,5 +135,13 @@ class FirestoreUserProfileRepository implements UserProfileRepository {
   }) async {
     await _usersRef.doc(uid).update({'fotoUrl': fotoUrl});
     await _perfilesPublicosRef.doc(uid).update({'fotoUrl': fotoUrl});
+  }
+
+  @override
+  Future<void> actualizarNotificaciones({
+    required String uid,
+    required bool activas,
+  }) async {
+    await _usersRef.doc(uid).update({'notificacionesActivas': activas});
   }
 }

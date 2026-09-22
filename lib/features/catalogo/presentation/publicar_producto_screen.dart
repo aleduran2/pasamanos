@@ -7,8 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/data/barrios_la_plata.dart';
 import '../../../core/data/colegios_la_plata.dart';
 import '../../../core/data/talles.dart';
+import '../../../core/widgets/grilla_dos_columnas.dart';
 import '../../../core/widgets/selector_con_otro.dart';
 import '../../../core/widgets/selector_multiple_desplegable.dart';
+import '../../../core/widgets/tarjeta_seleccionable.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../models/publicacion.dart';
 import '../providers/catalogo_providers.dart';
@@ -312,30 +314,25 @@ class _PublicarProductoScreenState
                     },
                   ),
                   const SizedBox(height: 18),
-                  Text(
-                    'Categoría',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: Categoria.values.map((c) {
-                      final seleccionado = _categoria == c;
-                      return _ChipSeleccionable(
-                        etiqueta: c.etiqueta,
-                        seleccionado: seleccionado,
-                        onSelected: () => setState(() {
-                          _categoria = c;
-                          // El talle de otra categoría puede no existir en
-                          // la lista de la nueva (ej.: talle de calzado vs.
-                          // talle de ropa), así que se reinicia.
-                          _talle = null;
-                        }),
-                      );
-                    }).toList(),
+                  DropdownButtonFormField<Categoria>(
+                    initialValue: _categoria,
+                    decoration: const InputDecoration(labelText: 'Categoría'),
+                    isExpanded: true,
+                    items: Categoria.values
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c,
+                            child: Text(c.etiqueta),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (valor) => setState(() {
+                      _categoria = valor!;
+                      // El talle de otra categoría puede no existir en la
+                      // lista de la nueva (ej.: talle de calzado vs. talle
+                      // de ropa), así que se reinicia.
+                      _talle = null;
+                    }),
                   ),
                   const SizedBox(height: 18),
                   Text(
@@ -345,12 +342,10 @@ class _PublicarProductoScreenState
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                  GrillaDosColumnas(
                     children: EtapaEdad.values.map((e) {
                       final seleccionado = _etapaEdad == e;
-                      return _ChipSeleccionable(
+                      return TarjetaSeleccionable(
                         etiqueta: e.etiqueta,
                         icono: e.icono,
                         seleccionado: seleccionado,
@@ -474,45 +469,6 @@ class _SeccionFormulario extends StatelessWidget {
           child,
         ],
       ),
-    );
-  }
-}
-
-/// Chip de selección con colores explícitos en ambos estados. El
-/// `ChoiceChip` del tema global no alcanza acá: cuando no se selecciona un
-/// color de texto a mano, el color de la etiqueta puede terminar
-/// mezclándose con el fondo de la tarjeta que lo rodea (mismo problema que
-/// ya se resolvió en los chips de Búsqueda fijando el color a mano).
-class _ChipSeleccionable extends StatelessWidget {
-  const _ChipSeleccionable({
-    required this.etiqueta,
-    required this.seleccionado,
-    required this.onSelected,
-    this.icono,
-  });
-
-  final String etiqueta;
-  final IconData? icono;
-  final bool seleccionado;
-  final VoidCallback onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final colorTexto = seleccionado
-        ? colorScheme.onPrimary
-        : colorScheme.onSurfaceVariant;
-    return ChoiceChip(
-      avatar: icono != null ? Icon(icono, size: 18, color: colorTexto) : null,
-      label: Text(etiqueta),
-      labelStyle: TextStyle(color: colorTexto, fontWeight: FontWeight.w700),
-      selected: seleccionado,
-      selectedColor: colorScheme.primary,
-      backgroundColor: colorScheme.surface,
-      side: BorderSide(
-        color: seleccionado ? Colors.transparent : colorScheme.outline,
-      ),
-      onSelected: (_) => onSelected(),
     );
   }
 }

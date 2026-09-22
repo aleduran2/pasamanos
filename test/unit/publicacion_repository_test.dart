@@ -171,6 +171,29 @@ void main() {
       expect(resultados.first.categoria, Categoria.uniformes);
     });
 
+    test('sin etapaEdad busca en todas las etapas', () async {
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.primaria,
+        categoria: Categoria.uniformes,
+      );
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.bebe,
+        categoria: Categoria.ropa,
+      );
+      await guardarConEstado(
+        id: repository.generarId(),
+        etapaEdad: EtapaEdad.secundaria,
+        categoria: Categoria.libros,
+        estado: EstadoPublicacion.vendido,
+      );
+
+      final resultados = await repository.buscarDisponibles();
+
+      expect(resultados, hasLength(2));
+    });
+
     test('aplica el filtro secundario de categoría', () async {
       await guardarConEstado(
         id: repository.generarId(),

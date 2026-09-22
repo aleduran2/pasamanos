@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/formato.dart';
 import '../../../core/utils/kyc.dart';
+import '../../../core/utils/telefono.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../acuerdos/data/acuerdo_repository.dart';
 import '../../acuerdos/models/acuerdo.dart';
@@ -134,30 +135,46 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final telefonoController = TextEditingController(
       text: esComprador ? acuerdo.telefonoComprador : acuerdo.telefonoVendedor,
     );
+    String? error;
     final confirmado = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Compartir WhatsApp'),
-        content: TextField(
-          controller: telefonoController,
-          keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(hintText: 'Ej: 2211234567'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Compartir WhatsApp'),
+          content: TextField(
+            controller: telefonoController,
+            keyboardType: TextInputType.phone,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Ej: 2211234567',
+              errorText: error,
+            ),
+            onChanged: (_) {
+              if (error != null) setDialogState(() => error = null);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final texto = telefonoController.text.trim();
+                if (!esTelefonoValido(texto)) {
+                  setDialogState(() => error = mensajeTelefonoInvalido);
+                  return;
+                }
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('Compartir'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Compartir'),
-          ),
-        ],
       ),
     );
     if (confirmado != true) return;
     final telefono = telefonoController.text.trim();
-    if (telefono.isEmpty) return;
 
     setState(() => _compartiendoTelefono = true);
     try {

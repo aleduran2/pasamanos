@@ -6,7 +6,9 @@ import '../../features/catalogo/models/publicacion.dart';
 const String talleOtroValor = '__otro_talle__';
 
 /// Talles de ropa/uniformes de chicos, por edad (la forma más común de
-/// hablar de talles de indumentaria infantil en Argentina).
+/// hablar de talles de indumentaria infantil en Argentina). Se suman al
+/// final los talles en letra (XS a XXL), habituales sobre todo en ropa
+/// para adolescentes o en marcas que no usan el sistema por edad.
 const List<String> tallesRopa = [
   '0-3 meses',
   '3-6 meses',
@@ -22,6 +24,12 @@ const List<String> tallesRopa = [
   '12 años',
   '14 años',
   '16 años',
+  'XS',
+  'S',
+  'M',
+  'L',
+  'XL',
+  'XXL',
 ];
 
 /// Numeración argentina de calzado infantil.

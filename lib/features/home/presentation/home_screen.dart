@@ -93,7 +93,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: const Text('Cerrar sesión'),
         content: const Text('¿Querés cerrar tu sesión en Pasamanos?'),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancelar'),
           ),
@@ -118,11 +118,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: const Text('Pasamanos'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar sesión',
-            onPressed: _cerrarSesion,
-          ),
+          if (usuario != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _MenuPerfil(
+                usuario: usuario,
+                onPerfil: _irAPerfil,
+                onCerrarSesion: _cerrarSesion,
+              ),
+            ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -154,10 +158,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
             children: [
-              if (usuario != null) ...[
-                _TarjetaPerfil(usuario: usuario, onTap: _irAPerfil),
-                const SizedBox(height: 14),
-              ],
               _BarraDeBusqueda(
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const BusquedaScreen()),
@@ -275,73 +275,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-/// Encabezado con la identidad de la usuaria (nombre, email, foto) y un
-/// acceso directo a "Mi perfil" — antes lo único que había era un ícono
-/// genérico en el AppBar, sin ningún dato a la vista, así que no quedaba
-/// claro que ahí se podía editar nombre/foto/contraseña/WhatsApp.
-class _TarjetaPerfil extends StatelessWidget {
-  const _TarjetaPerfil({required this.usuario, required this.onTap});
+/// Avatar en el AppBar con un menú desplegable — antes "Mi perfil" y
+/// "Cerrar sesión" eran dos íconos sueltos (uno de ellos, encima, sin
+/// ningún dato de la usuaria a la vista). Acá el propio avatar hace de
+/// disparador del menú, un patrón más habitual en apps con cuenta.
+class _MenuPerfil extends StatelessWidget {
+  const _MenuPerfil({
+    required this.usuario,
+    required this.onPerfil,
+    required this.onCerrarSesion,
+  });
 
   final AppUser usuario;
-  final VoidCallback onTap;
+  final VoidCallback onPerfil;
+  final VoidCallback onCerrarSesion;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final nombre = usuario.nombre?.trim().isNotEmpty ?? false
-        ? usuario.nombre!
-        : usuario.email;
 
-    return Material(
-      color: colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
+    return PopupMenuButton<VoidCallback>(
+      tooltip: 'Mi cuenta',
+      onSelected: (accion) => accion(),
+      icon: CircleAvatar(
+        radius: 18,
+        backgroundColor: colorScheme.surfaceContainerHighest,
+        backgroundImage: usuario.fotoUrl != null
+            ? NetworkImage(usuario.fotoUrl!)
+            : null,
+        child: usuario.fotoUrl == null
+            ? Icon(Icons.person_rounded, color: colorScheme.onSurfaceVariant)
+            : null,
+      ),
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: onPerfil,
+          child: const Row(
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: colorScheme.surfaceContainerHighest,
-                backgroundImage: usuario.fotoUrl != null
-                    ? NetworkImage(usuario.fotoUrl!)
-                    : null,
-                child: usuario.fotoUrl == null
-                    ? Icon(
-                        Icons.person_rounded,
-                        color: colorScheme.onSurfaceVariant,
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      nombre,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      'Ver y editar mi perfil',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
+              Icon(Icons.person_outline_rounded),
+              SizedBox(width: 12),
+              Text('Mi perfil'),
             ],
           ),
         ),
-      ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: onCerrarSesion,
+          child: Row(
+            children: [
+              Icon(Icons.logout_rounded, color: colorScheme.error),
+              const SizedBox(width: 12),
+              Text('Cerrar sesión', style: TextStyle(color: colorScheme.error)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

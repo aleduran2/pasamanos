@@ -17,7 +17,7 @@ class LocalNotificationService {
     _inicializado = true;
 
     const configuracionAndroid = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+      '@mipmap/launcher_icon',
     );
     await _plugin.initialize(
       settings: const InitializationSettings(android: configuracionAndroid),

@@ -25,13 +25,14 @@ abstract class PublicacionRepository {
 
   Future<List<Publicacion>> listarPorVendedor(String vendedorId);
 
-  /// Busca publicaciones disponibles. La etapa/edad es el filtro principal
-  /// (obligatorio); el resto son filtros secundarios opcionales. Talle y
-  /// colores solo tienen sentido junto con una categoría elegida (cada
-  /// categoría usa su propio sistema de talles). `colores` es "cualquiera
-  /// de estos" (OR), no una coincidencia exacta.
+  /// Busca publicaciones disponibles. La etapa/edad es el filtro principal,
+  /// pero es opcional: si no se pasa, busca en todas las etapas. El resto
+  /// son filtros secundarios opcionales. Talle y colores solo tienen
+  /// sentido junto con una categoría elegida (cada categoría usa su propio
+  /// sistema de talles). `colores` es "cualquiera de estos" (OR), no una
+  /// coincidencia exacta.
   Future<List<Publicacion>> buscarDisponibles({
-    required EtapaEdad etapaEdad,
+    EtapaEdad? etapaEdad,
     Categoria? categoria,
     String? colegio,
     String? barrio,
@@ -107,16 +108,20 @@ class FirestorePublicacionRepository implements PublicacionRepository {
 
   @override
   Future<List<Publicacion>> buscarDisponibles({
-    required EtapaEdad etapaEdad,
+    EtapaEdad? etapaEdad,
     Categoria? categoria,
     String? colegio,
     String? barrio,
     String? talle,
     List<String>? colores,
   }) async {
-    Query<Map<String, dynamic>> query = _publicacionesRef
-        .where('estado', isEqualTo: EstadoPublicacion.disponible.valorFirestore)
-        .where('etapaEdad', isEqualTo: etapaEdad.valorFirestore);
+    Query<Map<String, dynamic>> query = _publicacionesRef.where(
+      'estado',
+      isEqualTo: EstadoPublicacion.disponible.valorFirestore,
+    );
+    if (etapaEdad != null) {
+      query = query.where('etapaEdad', isEqualTo: etapaEdad.valorFirestore);
+    }
 
     if (categoria != null) {
       query = query.where('categoria', isEqualTo: categoria.valorFirestore);
