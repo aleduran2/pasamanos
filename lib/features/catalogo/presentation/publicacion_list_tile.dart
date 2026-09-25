@@ -78,6 +78,23 @@ class PublicacionListTile extends StatelessWidget {
                         compacto: true,
                       ),
                     ),
+                  if (publicacion.estaDestacada)
+                    Positioned(
+                      top: 2,
+                      left: 2,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: Colors.amber[800],
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.star_rounded,
+                          size: 13,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                   if (_cantidadFotos > 1)
                     Positioned(
                       bottom: 4,

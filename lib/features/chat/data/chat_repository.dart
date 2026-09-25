@@ -3,6 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/conversacion.dart';
 import '../models/mensaje.dart';
 
+const _textoBienvenida =
+    'Coordiná todo acá dentro: cuando se pongan de acuerdo en el precio, '
+    'cierren el trato. Después la compradora elige cómo seguir: pagar con '
+    'Mercado Pago (identidad verificada y pago protegido) o coordinar '
+    'directo por WhatsApp, sin costo. Cualquiera de los dos habilita '
+    'compartir WhatsApp para la entrega.';
+
 abstract class ChatRepository {
   /// Devuelve la conversación entre comprador y vendedor sobre esa
   /// publicación, creándola si todavía no existe. El ID es determinístico
@@ -61,6 +68,18 @@ class FirestoreChatRepository implements ChatRepository {
       vendedorId: vendedorId,
     );
     await docRef.set(conversacion.toFirestore());
+    // El emisor tiene que ser quien hace este write (la compradora, única
+    // que puede estar creando la conversación en este punto) — las reglas
+    // de Firestore exigen que emisorId coincida con quien escribe. No
+    // importa para la UI: un mensaje "sistema" se muestra igual sin
+    // mostrar de quién es.
+    await docRef.collection('mensajes').add({
+      'emisorId': compradorId,
+      'texto': _textoBienvenida,
+      'timestamp': FieldValue.serverTimestamp(),
+      'leido': false,
+      'tipo': TipoMensaje.sistema.valorFirestore,
+    });
     return conversacion;
   }
 

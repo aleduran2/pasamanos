@@ -100,8 +100,8 @@ void main() {
         .mensajes('pub-1_uid-compradora')
         .first;
 
-    expect(mensajes, hasLength(2));
-    expect(mensajes.first.texto, 'Hola');
+    expect(mensajes, hasLength(3));
+    expect(mensajes[1].texto, 'Hola');
     expect(mensajes.last.texto, 'Hola, sí, está disponible');
 
     final doc = await firestore

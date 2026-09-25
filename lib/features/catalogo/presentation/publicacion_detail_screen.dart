@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/formato.dart';
+import '../../../core/widgets/dialogo_botones.dart';
 import '../../../core/widgets/favorito_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../chat/presentation/chat_screen.dart';
@@ -32,6 +35,7 @@ class _PublicacionDetailScreenState
   int _fotoActual = 0;
   bool _esFavorito = false;
   bool _eliminando = false;
+  bool _destacando = false;
   PerfilPublico? _perfilVendedora;
   late Publicacion _publicacion = widget.publicacion;
 
@@ -145,13 +149,11 @@ class _PublicacionDetailScreenState
               : 'Esta acción no se puede deshacer.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Eliminar'),
+          DialogoBotones(
+            textoCancelar: 'Cancelar',
+            textoConfirmar: 'Eliminar',
+            onCancelar: () => Navigator.of(context).pop(false),
+            onConfirmar: () => Navigator.of(context).pop(true),
           ),
         ],
       ),
@@ -180,6 +182,45 @@ class _PublicacionDetailScreenState
       }
     } finally {
       if (mounted) setState(() => _eliminando = false);
+    }
+  }
+
+  Future<void> _destacarPublicacion() async {
+    setState(() => _destacando = true);
+    try {
+      final resultado = await FirebaseFunctions.instanceFor(
+        region: 'southamerica-east1',
+      ).httpsCallable('crearPreferenciaDestacada').call<Map<String, dynamic>>({
+        'publicacionId': _publicacion.id,
+      });
+      final initPoint = resultado.data['initPoint'] as String?;
+      if (initPoint == null) throw Exception('Sin link de pago');
+
+      final abierto = await launchUrl(
+        Uri.parse(initPoint),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!abierto && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir Mercado Pago.')),
+        );
+      }
+    } on FirebaseFunctionsException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.message ?? 'No se pudo generar el pago.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo generar el pago.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _destacando = false);
     }
   }
 
@@ -281,6 +322,23 @@ class _PublicacionDetailScreenState
                               onTap: _alternarFavorito,
                               fondoOscuro: true,
                             ),
+                          if (publicacion.estaDestacada) ...[
+                            const SizedBox(height: 8),
+                            Chip(
+                              avatar: const Icon(
+                                Icons.star_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                              label: const Text('Destacada'),
+                              labelStyle: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              backgroundColor: Colors.amber[800],
+                              side: BorderSide.none,
+                            ),
+                          ],
                           if (_etiquetaEstado.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Chip(
@@ -464,7 +522,58 @@ class _PublicacionDetailScreenState
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (publicacion.estado == EstadoPublicacion.disponible) ...[
+                      if (publicacion.estaDestacada)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Destacada hasta '
+                            '${formatearFecha(publicacion.destacadaHasta!)}.',
+                            textAlign: TextAlign.center,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                '\$3.000 por 7 días — aparece primero en la búsqueda',
+                                textAlign: TextAlign.center,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              OutlinedButton.icon(
+                                onPressed: _destacando ? null : _destacarPublicacion,
+                                icon: _destacando
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.star_outline_rounded),
+                                label: const Text(
+                                  'Destacar publicación',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                    Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
@@ -494,6 +603,8 @@ class _PublicacionDetailScreenState
                         label: const Text('Eliminar'),
                       ),
                     ),
+                  ],
+                ),
                   ],
                 ),
               ),

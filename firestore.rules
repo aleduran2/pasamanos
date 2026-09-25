@@ -54,12 +54,16 @@ service cloud.firestore {
       allow read: if estaAutenticado();
       allow create: if estaAutenticado()
         && request.resource.data.vendedorId == request.auth.uid;
-      // La vendedora puede modificar cualquier campo (incluye el pasaje a
-      // "reservado"/"vendido" y la edición de datos). Cualquier otra
-      // usuaria autenticada puede sumar una vista, pero solo tocando ese
-      // campo — nada más.
+      // La vendedora puede modificar cualquier campo EXCEPTO
+      // `destacadaHasta` (incluye el pasaje a "reservado"/"vendido" y la
+      // edición de datos) — ese campo lo escribe únicamente el backend
+      // (Cloud Function) cuando Mercado Pago confirma el pago de
+      // "Publicación destacada", si no cualquiera podría destacarse gratis
+      // editando el documento directo. Cualquier otra usuaria autenticada
+      // puede sumar una vista, pero solo tocando ese campo — nada más.
       allow update: if estaAutenticado()
-        && (resource.data.vendedorId == request.auth.uid
+        && ((resource.data.vendedorId == request.auth.uid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['destacadaHasta']))
           || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vistas']));
       allow delete: if estaAutenticado()
         && resource.data.vendedorId == request.auth.uid;
@@ -107,11 +111,22 @@ service cloud.firestore {
     // reserva no prospera), y cada parte su propio teléfono de WhatsApp
     // para compartirlo con la otra — nunca el ajeno. Sin borrado.
     match /acuerdos/{acuerdoId} {
-      allow read: if estaAutenticado()
-        && (request.auth.uid == resource.data.compradorId
-          || request.auth.uid == resource.data.vendedorId);
+      // Ojo acá: para una query de lista (no un get por id puntual),
+      // Firestore no evalúa las reglas documento por documento — necesita
+      // poder probar, a partir del propio filtro de la query, que el
+      // resultado va a cumplir la regla. Un OR sobre dos campos sueltos
+      // (compradorId/vendedorId) no alcanza para eso y tira
+      // permission-denied aunque el documento sea legítimamente tuyo. Por
+      // eso el chequeo es contra `participantes` (mismo patrón que
+      // `conversaciones`), y la query del cliente filtra explícitamente
+      // por ese array.
+      allow read: if estaAutenticado() && request.auth.uid in resource.data.participantes;
       allow create: if estaAutenticado()
-        && request.auth.uid == request.resource.data.vendedorId;
+        && request.auth.uid == request.resource.data.vendedorId
+        && request.resource.data.participantes == [
+          request.resource.data.compradorId,
+          request.resource.data.vendedorId,
+        ];
       allow update: if estaAutenticado()
         && (request.auth.uid == resource.data.compradorId
           || request.auth.uid == resource.data.vendedorId)
@@ -122,6 +137,16 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['telefonoComprador']))
           || (request.auth.uid == resource.data.vendedorId
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['telefonoVendedor']))
+          // Solo la compradora, solo de false/ausente a true — sin vuelta
+          // atrás una vez que eligió coordinar directo por WhatsApp. El
+          // chequeo de presencia con `in` es necesario: acceder a un campo
+          // que no existe en el documento (acuerdos viejos, de antes de
+          // que este campo existiera) tira error de evaluación en vez de
+          // devolver null, y eso Firestore lo trata como permission-denied.
+          || (request.auth.uid == resource.data.compradorId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coordinacionDirecta'])
+            && request.resource.data.coordinacionDirecta == true
+            && (!('coordinacionDirecta' in resource.data) || resource.data.coordinacionDirecta != true))
         );
       allow delete: if false;
     }

@@ -147,7 +147,9 @@ class FirestorePublicacionRepository implements PublicacionRepository {
 
     // Se ordena del lado del cliente (no en la query) para no requerir un
     // índice compuesto en Firestore por cada combinación de filtros.
-    publicaciones.sort(_porFechaDescendente);
+    // Las destacadas van primero (es lo que paga esa función), y dentro de
+    // cada grupo, de más nueva a más vieja.
+    publicaciones.sort(_porDestacadaYFecha);
     return publicaciones;
   }
 }
@@ -164,4 +166,11 @@ int _porFechaDescendente(Publicacion a, Publicacion b) {
   if (fechaA == null) return -1;
   if (fechaB == null) return 1;
   return fechaB.compareTo(fechaA);
+}
+
+int _porDestacadaYFecha(Publicacion a, Publicacion b) {
+  if (a.estaDestacada != b.estaDestacada) {
+    return a.estaDestacada ? -1 : 1;
+  }
+  return _porFechaDescendente(a, b);
 }

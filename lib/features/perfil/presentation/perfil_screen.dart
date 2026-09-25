@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/kyc.dart';
 import '../../../core/utils/telefono.dart';
+import '../../../core/widgets/dialogo_botones.dart';
 import '../../auth/presentation/auth_error_messages.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../catalogo/providers/catalogo_providers.dart';
@@ -306,12 +307,18 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: enviando ? null : () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: enviando
+            DialogoBotones(
+              textoCancelar: 'Cancelar',
+              textoConfirmar: 'Guardar',
+              onCancelar: enviando ? null : () => Navigator.of(context).pop(),
+              contenidoConfirmar: enviando
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onConfirmar: enviando
                   ? null
                   : () async {
                       final actual = actualController.text;
@@ -346,13 +353,6 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                         });
                       }
                     },
-              child: enviando
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Guardar'),
             ),
           ],
         ),
@@ -633,9 +633,11 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Conectá tu cuenta para poder cobrar directo cuando cierres '
-                  'un trato. Pasamanos se queda con una comisión del 5% de '
-                  'cada venta; el resto va directo a tu cuenta.',
+                  'Conectá tu cuenta para poder cobrar directo cuando la '
+                  'compradora elija pagar con "Compra protegida" (Pasamanos '
+                  'se queda con una comisión del 5%, el resto va directo a '
+                  'tu cuenta). No hace falta si todos tus tratos son '
+                  '"Trato directo".',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -696,10 +698,12 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Para tratos de ${_formatearMonto(montoMinimoVerificacion)} '
-                  'o más, pedimos verificar tu identidad antes de compartir '
+                  'Si elegís "Compra protegida" en un trato de '
+                  '${_formatearMonto(montoMinimoVerificacion)} o más, '
+                  'pedimos verificar tu identidad antes de compartir '
                   'contacto — es una medida de seguridad para todas las '
-                  'familias de la comunidad.',
+                  'familias de la comunidad. En "Trato directo" no hace '
+                  'falta verificarse.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),

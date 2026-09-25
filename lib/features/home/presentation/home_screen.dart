@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/dialogo_botones.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../alertas/presentation/alertas_screen.dart';
 import '../../auth/models/app_user.dart';
@@ -11,7 +12,9 @@ import '../../catalogo/presentation/publicacion_detail_screen.dart';
 import '../../catalogo/presentation/publicacion_list_tile.dart';
 import '../../catalogo/presentation/publicar_producto_screen.dart';
 import '../../catalogo/providers/catalogo_providers.dart';
+import '../../chat/models/conversacion.dart';
 import '../../chat/presentation/conversaciones_screen.dart';
+import '../../chat/providers/chat_providers.dart';
 import '../../favoritos/presentation/favoritos_screen.dart';
 import '../../notificaciones/providers/notificaciones_providers.dart';
 import '../../perfil/presentation/perfil_screen.dart';
@@ -65,7 +68,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const ConversacionesScreen()));
-    if (mounted) setState(() => _futuro = _cargarMisPublicaciones());
+    if (mounted) {
+      setState(() {
+        _futuro = _cargarMisPublicaciones();
+      });
+    }
   }
 
   Future<void> _verPublicacion(Publicacion publicacion) async {
@@ -74,7 +81,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         builder: (_) => PublicacionDetailScreen(publicacion: publicacion),
       ),
     );
-    if (mounted) setState(() => _futuro = _cargarMisPublicaciones());
+    if (mounted) {
+      setState(() {
+        _futuro = _cargarMisPublicaciones();
+      });
+    }
   }
 
   Future<void> _irAPerfil() async {
@@ -93,13 +104,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: const Text('Cerrar sesión'),
         content: const Text('¿Querés cerrar tu sesión en Pasamanos?'),
         actions: [
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Cerrar sesión'),
+          DialogoBotones(
+            textoCancelar: 'Cancelar',
+            textoConfirmar: 'Cerrar sesión',
+            onCancelar: () => Navigator.of(context).pop(false),
+            onConfirmar: () => Navigator.of(context).pop(true),
           ),
         ],
       ),
@@ -179,13 +188,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _TarjetaAccion(
-                      icono: Icons.chat_bubble_rounded,
-                      etiqueta: 'Mensajes',
-                      color: colorScheme.secondaryContainer,
-                      colorTexto: colorScheme.onSecondaryContainer,
-                      onTap: _irAConversaciones,
-                    ),
+                    child: usuario == null
+                        ? _TarjetaAccion(
+                            icono: Icons.chat_bubble_rounded,
+                            etiqueta: 'Mensajes',
+                            color: colorScheme.secondaryContainer,
+                            colorTexto: colorScheme.onSecondaryContainer,
+                            onTap: _irAConversaciones,
+                          )
+                        : StreamBuilder<List<Conversacion>>(
+                            stream: ref
+                                .read(chatRepositoryProvider)
+                                .misConversaciones(usuario.uid),
+                            builder: (context, snapshot) {
+                              final sinLeer = (snapshot.data ?? const [])
+                                  .where((c) => c.noLeidoPor(usuario.uid))
+                                  .length;
+                              return _TarjetaAccion(
+                                icono: Icons.chat_bubble_rounded,
+                                etiqueta: 'Mensajes',
+                                color: colorScheme.secondaryContainer,
+                                colorTexto: colorScheme.onSecondaryContainer,
+                                onTap: _irAConversaciones,
+                                badge: sinLeer,
+                              );
+                            },
+                          ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -381,6 +409,7 @@ class _TarjetaAccion extends StatelessWidget {
     required this.colorTexto,
     this.valor,
     this.onTap,
+    this.badge,
   });
 
   final IconData icono;
@@ -389,6 +418,12 @@ class _TarjetaAccion extends StatelessWidget {
   final Color colorTexto;
   final String? valor;
   final VoidCallback? onTap;
+
+  /// Cantidad a mostrar en el globito rojo arriba a la derecha (p. ej.
+  /// conversaciones sin leer) — sin esto, la vendedora no tenía ninguna
+  /// forma de darse cuenta desde el Home que alguien le escribió, más que
+  /// entrando a "Mensajes" a mirar.
+  final int? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -418,7 +453,7 @@ class _TarjetaAccion extends StatelessWidget {
       ],
     );
 
-    return Material(
+    final tarjeta = Material(
       color: color,
       borderRadius: BorderRadius.circular(16),
       child: onTap == null
@@ -437,6 +472,44 @@ class _TarjetaAccion extends StatelessWidget {
                 child: contenido,
               ),
             ),
+    );
+
+    if (badge == null || badge == 0) return tarjeta;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Un Stack da a sus hijos no posicionados restricciones "loose" en
+        // vez de las "tight" que daba el Expanded de antes — sin este
+        // SizedBox la tarjeta se encoge a su contenido y el badge, ubicado
+        // relativo al Stack entero, queda flotando lejos de ella.
+        SizedBox(width: double.infinity, child: tarjeta),
+        Positioned(
+          top: -6,
+          right: -6,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            constraints: const BoxConstraints(minWidth: 22),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.error,
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.surface,
+                width: 2,
+              ),
+            ),
+            child: Text(
+              badge! > 9 ? '9+' : '$badge',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onError,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

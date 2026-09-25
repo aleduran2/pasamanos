@@ -2,6 +2,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { defineSecret, defineString } from "firebase-functions/params";
+import { leerRespuestaMP } from "./mercadopago_http";
 
 const db = getFirestore();
 
@@ -84,11 +85,11 @@ export const mpOAuthCallback = onRequest(
           redirect_uri: urlCallbackOAuth(),
         }),
       });
-      const datos = (await respuesta.json()) as Record<string, unknown>;
+      const datos = await leerRespuestaMP(respuesta);
 
       if (!respuesta.ok) {
         logger.error(
-          `mpOAuthCallback: token exchange falló uid=${uid} ${JSON.stringify(datos)}`
+          `mpOAuthCallback: token exchange falló uid=${uid} status=${respuesta.status} ${JSON.stringify(datos)}`
         );
         res
           .status(400)
@@ -208,11 +209,11 @@ export const crearPreferenciaPago = onCall(
         }),
       }
     );
-    const preferencia = (await respuesta.json()) as Record<string, unknown>;
+    const preferencia = await leerRespuestaMP(respuesta);
 
     if (!respuesta.ok) {
       logger.error(
-        `crearPreferenciaPago: MP respondió acuerdoId=${acuerdoId} ${JSON.stringify(preferencia)}`
+        `crearPreferenciaPago: MP respondió acuerdoId=${acuerdoId} status=${respuesta.status} ${JSON.stringify(preferencia)}`
       );
       throw new HttpsError("internal", "No se pudo generar el link de pago.");
     }
@@ -297,10 +298,10 @@ export const mpWebhook = onRequest({ region: REGION }, async (req, res) => {
       `https://api.mercadopago.com/v1/payments/${paymentId}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
-    const pago = (await pagoResp.json()) as Record<string, unknown>;
+    const pago = await leerRespuestaMP(pagoResp);
     if (!pagoResp.ok) {
       logger.error(
-        `mpWebhook: no se pudo leer el pago ${paymentId}: ${JSON.stringify(pago)}`
+        `mpWebhook: no se pudo leer el pago ${paymentId} status=${pagoResp.status}: ${JSON.stringify(pago)}`
       );
       res.status(200).send("ok");
       return;

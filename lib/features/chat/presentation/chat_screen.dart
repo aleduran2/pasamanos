@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/utils/formato.dart';
 import '../../../core/utils/kyc.dart';
 import '../../../core/utils/telefono.dart';
+import '../../../core/widgets/dialogo_botones.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../acuerdos/data/acuerdo_repository.dart';
 import '../../acuerdos/models/acuerdo.dart';
@@ -42,6 +45,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _cerrandoAcuerdo = false;
   bool _cambiandoEstado = false;
   bool _pagando = false;
+  bool _eligiendoTratoDirecto = false;
   bool _compartiendoTelefono = false;
   bool _yaCalifique = false;
   bool _enviandoCalificacion = false;
@@ -50,15 +54,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // usar `ref` (Riverpod tira un StateError si el widget se está
   // desmontando), así que no se puede volver a leer el provider ahí.
   late final ChatRepository _chatRepository;
+  late final AcuerdoRepository _acuerdoRepository;
   String? _miUid;
+  StreamSubscription<Acuerdo?>? _acuerdoSub;
 
   @override
   void initState() {
     super.initState();
     _chatRepository = ref.read(chatRepositoryProvider);
+    _acuerdoRepository = ref.read(acuerdoRepositoryProvider);
     _miUid = ref.read(authRepositoryProvider).currentUser?.uid;
     _cargarPublicacion();
-    _cargarAcuerdo();
+    _observarAcuerdo();
     _cargarEstadoVerificacion();
     _marcarComoLeido();
   }
@@ -93,20 +100,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  Future<void> _cargarAcuerdo() async {
-    try {
-      final acuerdo = await ref
-          .read(acuerdoRepositoryProvider)
-          .obtenerPorConversacion(widget.conversacion.id);
-      if (mounted) setState(() => _acuerdoActivo = acuerdo);
-      if (acuerdo != null && acuerdo.estado == EstadoAcuerdo.completado) {
-        await _verificarCalificacion(acuerdo);
-      }
-    } catch (error, stackTrace) {
-      if (kDebugMode) {
-        debugPrint('ChatScreen._cargarAcuerdo error: $error\n$stackTrace');
-      }
-    }
+  void _observarAcuerdo() {
+    final uid = _miUid;
+    if (uid == null) return;
+    _acuerdoSub = _acuerdoRepository
+        .observarPorConversacion(widget.conversacion.id, miUid: uid)
+        .listen(
+          (acuerdo) {
+            if (!mounted) return;
+            setState(() => _acuerdoActivo = acuerdo);
+            if (acuerdo != null && acuerdo.estado == EstadoAcuerdo.completado) {
+              _verificarCalificacion(acuerdo);
+            }
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            if (kDebugMode) {
+              debugPrint('ChatScreen._observarAcuerdo error: $error\n$stackTrace');
+            }
+          },
+        );
   }
 
   Future<void> _verificarCalificacion(Acuerdo acuerdo) async {
@@ -154,12 +166,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
+            DialogoBotones(
+              textoCancelar: 'Cancelar',
+              textoConfirmar: 'Compartir',
+              onCancelar: () => Navigator.of(context).pop(false),
+              onConfirmar: () {
                 final texto = telefonoController.text.trim();
                 if (!esTelefonoValido(texto)) {
                   setDialogState(() => error = mensajeTelefonoInvalido);
@@ -167,7 +178,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 }
                 Navigator.of(context).pop(true);
               },
-              child: const Text('Compartir'),
             ),
           ],
         ),
@@ -187,7 +197,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             emisorId: uid,
             telefono: telefono,
           );
-      await _cargarAcuerdo();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -255,13 +264,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Enviar'),
+            DialogoBotones(
+              textoCancelar: 'Cancelar',
+              textoConfirmar: 'Enviar',
+              onCancelar: () => Navigator.of(context).pop(false),
+              onConfirmar: () => Navigator.of(context).pop(true),
             ),
           ],
         ),
@@ -350,6 +357,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  Future<void> _abrirDialogoTratoDirecto() async {
+    final acuerdo = _acuerdoActivo;
+    final uid = _miUid;
+    if (acuerdo == null || uid == null) return;
+
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Coordinar directo por WhatsApp'),
+        content: const Text(
+          'Vas a coordinar la entrega y el pago por tu cuenta, sin pasar '
+          'por Mercado Pago. Esto significa: sin verificación de '
+          'identidad y sin la protección de Pasamanos sobre este trato. '
+          'No se puede deshacer.',
+        ),
+        actions: [
+          DialogoBotones(
+            textoCancelar: 'Cancelar',
+            textoConfirmar: 'Coordinar directo',
+            onCancelar: () => Navigator.of(context).pop(false),
+            onConfirmar: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true) return;
+
+    setState(() => _eligiendoTratoDirecto = true);
+    try {
+      await _acuerdoRepository.elegirTratoDirecto(
+        acuerdoId: acuerdo.id,
+        conversacionId: widget.conversacion.id,
+        compradorId: uid,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo guardar la elección.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _eligiendoTratoDirecto = false);
+    }
+  }
+
   void _marcarComoLeido() {
     final uid = _miUid;
     if (uid == null) return;
@@ -362,6 +414,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // pantalla estaba abierta (el primer marcado, en initState, no los
     // habría cubierto).
     _marcarComoLeido();
+    _acuerdoSub?.cancel();
     _mensajeController.dispose();
     super.dispose();
   }
@@ -399,13 +452,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           decoration: const InputDecoration(labelText: 'Precio acordado'),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Confirmar'),
+          DialogoBotones(
+            textoCancelar: 'Cancelar',
+            textoConfirmar: 'Confirmar',
+            onCancelar: () => Navigator.of(context).pop(false),
+            onConfirmar: () => Navigator.of(context).pop(true),
           ),
         ],
       ),
@@ -432,7 +483,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             precioAcordado: precio,
           );
       await _cargarPublicacion();
-      await _cargarAcuerdo();
     } on PublicacionNoDisponibleException {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -454,7 +504,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _marcarVendido() async {
     final publicacion = _publicacion;
-    if (publicacion == null) return;
+    final uid = _miUid;
+    if (publicacion == null || uid == null) return;
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -464,13 +515,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           'reservarse de nuevo.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Confirmar'),
+          DialogoBotones(
+            textoCancelar: 'Cancelar',
+            textoConfirmar: 'Confirmar',
+            onCancelar: () => Navigator.of(context).pop(false),
+            onConfirmar: () => Navigator.of(context).pop(true),
           ),
         ],
       ),
@@ -479,9 +528,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     setState(() => _cambiandoEstado = true);
     try {
-      await ref.read(acuerdoRepositoryProvider).marcarVendido(publicacion.id);
+      await ref
+          .read(acuerdoRepositoryProvider)
+          .marcarVendido(publicacion.id, miUid: uid);
       await _cargarPublicacion();
-      await _cargarAcuerdo();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -495,7 +545,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _cancelarReserva() async {
     final publicacion = _publicacion;
-    if (publicacion == null) return;
+    final uid = _miUid;
+    if (publicacion == null || uid == null) return;
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -504,13 +555,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           'La publicación vuelve a estar disponible para otras compradoras.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Volver'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Cancelar reserva'),
+          DialogoBotones(
+            textoCancelar: 'Volver',
+            textoConfirmar: 'Cancelar reserva',
+            onCancelar: () => Navigator.of(context).pop(false),
+            onConfirmar: () => Navigator.of(context).pop(true),
           ),
         ],
       ),
@@ -519,9 +568,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     setState(() => _cambiandoEstado = true);
     try {
-      await ref.read(acuerdoRepositoryProvider).cancelarReserva(publicacion.id);
+      await ref
+          .read(acuerdoRepositoryProvider)
+          .cancelarReserva(publicacion.id, miUid: uid);
       await _cargarPublicacion();
-      await _cargarAcuerdo();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -550,20 +600,75 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final acuerdo = _acuerdoActivo;
     final esComprador = acuerdo != null && acuerdo.compradorId == miUid;
+    final coordinacionDirecta = acuerdo?.coordinacionDirecta ?? false;
+    // La verificación de identidad es parte de lo que se "paga" al elegir
+    // la compra protegida — en trato directo no se pide nunca, sea cual
+    // sea el monto (esa fricción de menos es justo lo que hace atractivo
+    // el camino gratuito). Tampoco tiene sentido pedirla si el trato ya
+    // se canceló — sin este chequeo, el banner se quedaba pegado
+    // reclamando verificación para un trato que ya no existe.
     final necesitaVerificacion =
-        acuerdo != null && requiereVerificacion(acuerdo.precioAcordado);
+        acuerdo != null &&
+        acuerdo.estado != EstadoAcuerdo.cancelado &&
+        !coordinacionDirecta &&
+        requiereVerificacion(acuerdo.precioAcordado);
+    final pagoAprobado = acuerdo != null && acuerdo.estadoPago == 'approved';
+    // WhatsApp se habilita por cualquiera de los dos caminos: pago
+    // aprobado (compra protegida) o coordinación directa elegida por la
+    // compradora (sin pago, sin protección).
     final puedoCompartirWhatsapp =
         acuerdo != null &&
         (acuerdo.estado == EstadoAcuerdo.activo ||
             acuerdo.estado == EstadoAcuerdo.completado) &&
-        (!necesitaVerificacion ||
-            _miEstadoVerificacion == EstadoVerificacion.verificado);
+        (coordinacionDirecta ||
+            (pagoAprobado &&
+                (!necesitaVerificacion ||
+                    _miEstadoVerificacion == EstadoVerificacion.verificado)));
     final miTelefono = acuerdo == null
         ? null
         : (esComprador ? acuerdo.telefonoComprador : acuerdo.telefonoVendedor);
     final otroTelefono = acuerdo == null
         ? null
         : (esComprador ? acuerdo.telefonoVendedor : acuerdo.telefonoComprador);
+    final whatsappCompleto =
+        acuerdo != null &&
+        acuerdo.telefonoComprador != null &&
+        acuerdo.telefonoVendedor != null;
+    // Le falta elegir un camino (ni pagó ni pidió trato directo todavía):
+    // ahí es cuando tiene sentido ofrecerle los dos banners de elección.
+    final faltaElegirCamino =
+        acuerdo != null && !coordinacionDirecta && !pagoAprobado;
+    final esperandoPago =
+        acuerdo != null &&
+        !esComprador &&
+        acuerdo.estado == EstadoAcuerdo.activo &&
+        faltaElegirCamino;
+    final puedoMarcarVendido =
+        puedoGestionarReserva && (pagoAprobado || coordinacionDirecta);
+
+    // Sin acuerdo, o con uno cancelado, no hay ningún trato "en curso" que
+    // mostrar — mantener el stepper visible después de cancelar daba la
+    // falsa impresión de que el trato seguía en pie.
+    final pasos = acuerdo == null || acuerdo.estado == EstadoAcuerdo.cancelado
+        ? const <_PasoFlujo>[]
+        : coordinacionDirecta
+        ? <_PasoFlujo>[
+            const _PasoFlujo(label: 'Trato cerrado', completado: true),
+            const _PasoFlujo(label: 'Trato directo', completado: true),
+            _PasoFlujo(label: 'WhatsApp', completado: whatsappCompleto),
+            _PasoFlujo(label: 'Calificación', completado: _yaCalifique),
+          ]
+        : <_PasoFlujo>[
+            const _PasoFlujo(label: 'Trato cerrado', completado: true),
+            if (necesitaVerificacion)
+              _PasoFlujo(
+                label: 'Verificación',
+                completado: _miEstadoVerificacion == EstadoVerificacion.verificado,
+              ),
+            _PasoFlujo(label: 'Pago', completado: pagoAprobado),
+            _PasoFlujo(label: 'WhatsApp', completado: whatsappCompleto),
+            _PasoFlujo(label: 'Calificación', completado: _yaCalifique),
+          ];
 
     return Scaffold(
       appBar: AppBar(
@@ -591,55 +696,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ),
         actions: [
-          if (puedoOfrecerCierre)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: FilledButton.tonalIcon(
-                onPressed: _cerrandoAcuerdo
-                    ? null
-                    : _abrirDialogoCerrarAcuerdo,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 38),
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                ),
-                icon: const Icon(Icons.handshake_outlined, size: 18),
-                label: const Text('Cerrar acuerdo'),
-              ),
-            ),
+          // "Cerrar acuerdo" vive como banner en el cuerpo del chat (más
+          // visible que un botón chico acá) y "Marcar como vendido" tiene
+          // su propio banner una vez que el pago está aprobado — acá arriba
+          // solo queda la vía de escape para deshacer una reserva.
           if (puedoGestionarReserva)
-            PopupMenuButton<VoidCallback>(
-              enabled: !_cambiandoEstado,
-              onSelected: (accion) => accion(),
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: _marcarVendido,
-                  child: const Text('Marcar como vendido'),
-                ),
-                PopupMenuItem(
-                  value: _cancelarReserva,
-                  child: const Text('Cancelar reserva'),
-                ),
-              ],
+            IconButton(
+              tooltip: 'Cancelar reserva',
+              onPressed: _cambiandoEstado ? null : _cancelarReserva,
+              icon: const Icon(Icons.undo_rounded),
             ),
         ],
       ),
       body: Column(
         children: [
-          if (_acuerdoActivo != null &&
-              requiereVerificacion(_acuerdoActivo!.precioAcordado) &&
+          if (pasos.isNotEmpty) _StepperTrato(pasos: pasos),
+          if (puedoOfrecerCierre)
+            _BannerCerrarAcuerdo(
+              cerrando: _cerrandoAcuerdo,
+              onCerrar: _abrirDialogoCerrarAcuerdo,
+            ),
+          if (necesitaVerificacion &&
               _miEstadoVerificacion != EstadoVerificacion.verificado)
             _BannerDeVerificacion(
               onIrAVerificar: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const PerfilScreen()),
               ),
             ),
-          if (_acuerdoActivo != null &&
-              _acuerdoActivo!.compradorId == miUid &&
-              _acuerdoActivo!.estado == EstadoAcuerdo.activo)
-            _BannerDePago(
-              acuerdo: _acuerdoActivo!,
+          if (esComprador && faltaElegirCamino && acuerdo.estado == EstadoAcuerdo.activo)
+            _BannerElegirCamino(
+              acuerdo: acuerdo,
               pagando: _pagando,
+              eligiendoDirecto: _eligiendoTratoDirecto,
               onPagar: _pagar,
+              onElegirDirecto: _abrirDialogoTratoDirecto,
+            ),
+          if (esperandoPago) _BannerEsperandoPago(acuerdo: _acuerdoActivo!),
+          if (puedoMarcarVendido)
+            _BannerMarcarVendido(
+              coordinacionDirecta: coordinacionDirecta,
+              procesando: _cambiandoEstado,
+              onMarcarVendido: _marcarVendido,
             ),
           if (puedoCompartirWhatsapp)
             _BannerWhatsapp(
@@ -778,52 +875,184 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-/// Franja de pago para la compradora, arriba de los mensajes, mientras el
-/// acuerdo sigue activo. Cambia según lo último que informó el webhook de
-/// Mercado Pago (`estadoPago`): nada todavía, pendiente, rechazado o
-/// aprobado (acá ya no se ofrece volver a pagar).
-class _BannerDePago extends StatelessWidget {
-  const _BannerDePago({
-    required this.acuerdo,
-    required this.pagando,
-    required this.onPagar,
-  });
+/// Un paso del recorrido del trato, para [_StepperTrato]. La lista de pasos
+/// la arma `_ChatScreenState.build` porque "Verificación" solo corresponde
+/// si el monto lo exige — no es siempre la misma cantidad de pasos.
+class _PasoFlujo {
+  const _PasoFlujo({required this.label, required this.completado});
 
-  final Acuerdo acuerdo;
-  final bool pagando;
-  final VoidCallback onPagar;
+  final String label;
+  final bool completado;
+}
+
+/// Indicador fijo arriba del chat con los pasos del trato (cerrado →
+/// verificación si hace falta → pago → WhatsApp → calificación) y cuál está
+/// activo ahora. Sin esto, cada banner aparece y desaparece por su cuenta
+/// sin que ninguna de las dos partes tenga forma de ubicarse en el proceso
+/// completo — este widget es la respuesta a esa confusión.
+class _StepperTrato extends StatelessWidget {
+  const _StepperTrato({required this.pasos});
+
+  final List<_PasoFlujo> pasos;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    if (acuerdo.estadoPago == 'approved') {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        color: colorScheme.secondaryContainer,
-        child: Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: colorScheme.onSecondaryContainer),
-            const SizedBox(width: 8),
-            Text(
-              'Pago confirmado por Mercado Pago',
-              style: TextStyle(
-                color: colorScheme.onSecondaryContainer,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    final indiceActual = pasos.indexWhere((paso) => !paso.completado);
+    final actual = indiceActual == -1 ? pasos.length - 1 : indiceActual;
 
-    final leyenda = switch (acuerdo.estadoPago) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      color: colorScheme.surfaceContainerLow,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              for (var i = 0; i < pasos.length; i++) ...[
+                if (i > 0)
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      color: pasos[i].completado || i <= actual
+                          ? colorScheme.primary
+                          : colorScheme.outlineVariant,
+                    ),
+                  ),
+                Container(
+                  width: 20,
+                  height: 20,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: pasos[i].completado
+                        ? colorScheme.primary
+                        : (i == actual
+                              ? colorScheme.surface
+                              : colorScheme.surfaceContainerHighest),
+                    border: i == actual && !pasos[i].completado
+                        ? Border.all(color: colorScheme.primary, width: 2)
+                        : null,
+                  ),
+                  child: pasos[i].completado
+                      ? Icon(
+                          Icons.check_rounded,
+                          size: 14,
+                          color: colorScheme.onPrimary,
+                        )
+                      : Text(
+                          '${i + 1}',
+                          style: textTheme.labelSmall?.copyWith(
+                            color: i == actual
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Paso ${actual + 1} de ${pasos.length}: ${pasos[actual].label}',
+            style: textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// CTA para cerrar el trato, dentro del cuerpo del chat en vez de un botón
+/// chico en el AppBar — mucho más difícil de pasar por alto para la
+/// vendedora, que es quien lo puede usar.
+class _BannerCerrarAcuerdo extends StatelessWidget {
+  const _BannerCerrarAcuerdo({
+    required this.cerrando,
+    required this.onCerrar,
+  });
+
+  final bool cerrando;
+  final VoidCallback onCerrar;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      color: colorScheme.primaryContainer,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '¿Ya se pusieron de acuerdo en el precio?',
+            style: textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onPrimaryContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: cerrando ? null : onCerrar,
+              icon: cerrando
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.handshake_outlined),
+              label: const Text('Cerrar acuerdo'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Franja para la compradora mientras todavía no eligió un camino: pagar
+/// con Mercado Pago (compra protegida, con comisión) o coordinar directo
+/// por WhatsApp (gratis, sin protección). Antes esto era obligatorio —
+/// ahora es una elección real, con las dos opciones a la vista y sus
+/// contrapartidas explicadas, no escondida una atrás de la otra.
+class _BannerElegirCamino extends StatelessWidget {
+  const _BannerElegirCamino({
+    required this.acuerdo,
+    required this.pagando,
+    required this.eligiendoDirecto,
+    required this.onPagar,
+    required this.onElegirDirecto,
+  });
+
+  final Acuerdo acuerdo;
+  final bool pagando;
+  final bool eligiendoDirecto;
+  final VoidCallback onPagar;
+  final VoidCallback onElegirDirecto;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    final leyendaPago = switch (acuerdo.estadoPago) {
       'pending' || 'in_process' => 'El pago está en proceso.',
       'rejected' => 'El pago fue rechazado. Podés intentar de nuevo.',
       _ => null,
     };
+    final ocupado = pagando || eligiendoDirecto;
 
     return Container(
       width: double.infinity,
@@ -833,31 +1062,220 @@ class _BannerDePago extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Trato cerrado por ${formatearPrecio(acuerdo.precioAcordado)}',
+            'Trato cerrado por ${formatearPrecio(acuerdo.precioAcordado)}. '
+            '¿Cómo querés coordinar el pago?',
             style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
-          if (leyenda != null) ...[
+          if (leyendaPago != null) ...[
             const SizedBox(height: 2),
             Text(
-              leyenda,
+              leyendaPago,
               style: textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
           ],
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Compra protegida',
+                  style: textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Identidad verificada y pago resguardado hasta confirmar '
+                  'la entrega. Pasamanos cobra una comisión del 5%.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: ocupado ? null : onPagar,
+                    icon: pagando
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.payments_outlined),
+                    label: const Text(
+                      'Pagar con Mercado Pago',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Trato directo',
+                  style: textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Coordinan el pago y la entrega por su cuenta. Gratis, '
+                  'sin verificación y sin protección de Pasamanos.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: ocupado ? null : onElegirDirecto,
+                    icon: eligiendoDirecto
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.chat_bubble_outline_rounded),
+                    label: const Text(
+                      'Coordinar por WhatsApp',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Espejo de [_BannerElegirCamino] pero para la vendedora: sin esto no
+/// tenía ninguna señal de que el trato está esperando que la compradora
+/// elija un camino (el otro banner solo se mostraba del lado de quien
+/// elige), lo que la dejaba sin saber si algo se rompió o si solo hay que
+/// esperar. No tiene botón — acá no hay nada que la vendedora pueda hacer
+/// más que esperar la elección de la otra parte.
+class _BannerEsperandoPago extends StatelessWidget {
+  const _BannerEsperandoPago({required this.acuerdo});
+
+  final Acuerdo acuerdo;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    final leyenda = switch (acuerdo.estadoPago) {
+      'pending' || 'in_process' => 'El pago está en proceso.',
+      'rejected' =>
+        'El pago fue rechazado — la compradora puede intentar de nuevo.',
+      _ =>
+        'Esperando que la compradora elija pagar con Mercado Pago o '
+        'coordinar directo por WhatsApp.',
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      color: colorScheme.surfaceContainerHigh,
+      child: Row(
+        children: [
+          Icon(Icons.hourglass_top_rounded, color: colorScheme.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              leyenda,
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// CTA para la vendedora una vez que el pago quedó aprobado: coordinar la
+/// entrega (por WhatsApp, en el banner de abajo) y recién ahí marcar como
+/// vendido. Separado de "Cancelar reserva" (que quedó en el AppBar) porque
+/// son acciones casi opuestas y antes convivían en el mismo menú, fácil de
+/// confundir.
+class _BannerMarcarVendido extends StatelessWidget {
+  const _BannerMarcarVendido({
+    required this.coordinacionDirecta,
+    required this.procesando,
+    required this.onMarcarVendido,
+  });
+
+  final bool coordinacionDirecta;
+  final bool procesando;
+  final VoidCallback onMarcarVendido;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      color: colorScheme.secondaryContainer,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            coordinacionDirecta
+                ? 'Coordiná la entrega y marcá como vendido cuando esté '
+                      'lista.'
+                : 'Pago confirmado. Coordiná la entrega y marcá como '
+                      'vendido cuando esté lista.',
+            style: textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSecondaryContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: pagando ? null : onPagar,
-              icon: pagando
+              onPressed: procesando ? null : onMarcarVendido,
+              icon: procesando
                   ? const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.payments_outlined),
-              label: const Text('Pagar con Mercado Pago'),
+                  : const Icon(Icons.check_circle_outline_rounded),
+              label: const Text('Marcar como vendido'),
             ),
           ),
         ],

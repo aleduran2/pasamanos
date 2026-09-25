@@ -73,9 +73,9 @@ void main() {
     expect(publicacion!.estado, EstadoPublicacion.reservado);
 
     final mensajes = await chatRepository.mensajes(conversacionId).first;
-    expect(mensajes, hasLength(1));
-    expect(mensajes.first.tipo, TipoMensaje.sistema);
-    expect(mensajes.first.texto, contains('4.500'));
+    expect(mensajes, hasLength(2));
+    expect(mensajes.last.tipo, TipoMensaje.sistema);
+    expect(mensajes.last.texto, contains('4.500'));
   });
 
   test(
@@ -143,7 +143,10 @@ void main() {
         precioAcordado: 4500,
       );
 
-      await acuerdoRepository.marcarVendido(publicacionId);
+      await acuerdoRepository.marcarVendido(
+        publicacionId,
+        miUid: 'uid-vendedora',
+      );
 
       final publicacion = await publicacionRepository.obtenerPorId(
         publicacionId,
@@ -156,7 +159,7 @@ void main() {
       expect(acuerdo!.estado, EstadoAcuerdo.completado);
 
       final mensajes = await chatRepository.mensajes(conversacionId).first;
-      expect(mensajes, hasLength(2));
+      expect(mensajes, hasLength(3));
       expect(mensajes.last.tipo, TipoMensaje.sistema);
     },
   );
@@ -180,7 +183,10 @@ void main() {
         precioAcordado: 4500,
       );
 
-      await acuerdoRepository.cancelarReserva(publicacionId);
+      await acuerdoRepository.cancelarReserva(
+        publicacionId,
+        miUid: 'uid-vendedora',
+      );
 
       final publicacion = await publicacionRepository.obtenerPorId(
         publicacionId,
@@ -228,9 +234,46 @@ void main() {
       expect(acuerdoActualizado.telefonoVendedor, isNull);
 
       final mensajes = await chatRepository.mensajes(conversacionId).first;
-      expect(mensajes, hasLength(2));
+      expect(mensajes, hasLength(3));
       expect(mensajes.last.emisorId, 'uid-compradora');
       expect(mensajes.last.tipo, TipoMensaje.sistema);
+    },
+  );
+
+  test(
+    'elegirTratoDirecto marca el acuerdo y avisa en el chat',
+    () async {
+      final publicacionId = await crearPublicacionDisponible();
+      await chatRepository.obtenerOCrear(
+        publicacionId: publicacionId,
+        publicacionTitulo: 'Guardapolvo talle 8',
+        compradorId: 'uid-compradora',
+        vendedorId: 'uid-vendedora',
+      );
+      final conversacionId = '${publicacionId}_uid-compradora';
+      final acuerdo = await acuerdoRepository.cerrarAcuerdo(
+        conversacionId: conversacionId,
+        publicacionId: publicacionId,
+        compradorId: 'uid-compradora',
+        vendedorId: 'uid-vendedora',
+        precioAcordado: 25000,
+      );
+      expect(acuerdo.coordinacionDirecta, isFalse);
+
+      await acuerdoRepository.elegirTratoDirecto(
+        acuerdoId: acuerdo.id,
+        conversacionId: conversacionId,
+        compradorId: 'uid-compradora',
+      );
+
+      final acuerdoActualizado = await acuerdoRepository.obtenerPorConversacion(
+        conversacionId,
+      );
+      expect(acuerdoActualizado!.coordinacionDirecta, isTrue);
+
+      final mensajes = await chatRepository.mensajes(conversacionId).first;
+      expect(mensajes.last.tipo, TipoMensaje.sistema);
+      expect(mensajes.last.texto, contains('coordinar directo'));
     },
   );
 }

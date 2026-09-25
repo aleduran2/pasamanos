@@ -237,5 +237,50 @@ void main() {
       expect(resultados, hasLength(1));
       expect(resultados.first.colegio, 'Colegio San Martín');
     });
+
+    test('las destacadas (no vencidas) aparecen primero', () async {
+      final idVieja = repository.generarId();
+      await guardarConEstado(
+        id: idVieja,
+        etapaEdad: EtapaEdad.primaria,
+        categoria: Categoria.uniformes,
+      );
+      final idNueva = repository.generarId();
+      await guardarConEstado(
+        id: idNueva,
+        etapaEdad: EtapaEdad.primaria,
+        categoria: Categoria.uniformes,
+      );
+      final idDestacadaVencida = repository.generarId();
+      await guardarConEstado(
+        id: idDestacadaVencida,
+        etapaEdad: EtapaEdad.primaria,
+        categoria: Categoria.uniformes,
+      );
+      // Simula lo que escribe `destacarWebhook` (admin, no pasa por el
+      // repositorio del cliente): la vieja se destaca y sigue vigente, la
+      // otra se había destacado pero ya venció.
+      await firestore.collection('publicaciones').doc(idVieja).update({
+        'destacadaHasta': DateTime.now().add(const Duration(days: 3)),
+      });
+      await firestore
+          .collection('publicaciones')
+          .doc(idDestacadaVencida)
+          .update({
+            'destacadaHasta': DateTime.now().subtract(const Duration(days: 1)),
+          });
+
+      final resultados = await repository.buscarDisponibles(
+        etapaEdad: EtapaEdad.primaria,
+      );
+
+      expect(resultados, hasLength(3));
+      expect(resultados.first.id, idVieja);
+      expect(resultados.first.estaDestacada, isTrue);
+      expect(
+        resultados.skip(1).map((p) => p.estaDestacada),
+        everyElement(isFalse),
+      );
+    });
   });
 }

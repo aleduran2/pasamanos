@@ -13,3 +13,10 @@ String formatearPrecio(double precio) {
   }
   return '\$ $buffer';
 }
+
+/// Fecha corta estilo Argentina: `24/09/2026`. Mismo motivo que arriba:
+/// no vale la pena sumar `intl` para un formato tan simple.
+String formatearFecha(DateTime fecha) {
+  String dosDigitos(int n) => n.toString().padLeft(2, '0');
+  return '${dosDigitos(fecha.day)}/${dosDigitos(fecha.month)}/${fecha.year}';
+}

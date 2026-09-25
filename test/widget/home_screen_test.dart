@@ -8,6 +8,8 @@ import 'package:pasamanos/features/auth/providers/auth_providers.dart';
 import 'package:pasamanos/features/catalogo/data/publicacion_repository.dart';
 import 'package:pasamanos/features/catalogo/models/publicacion.dart';
 import 'package:pasamanos/features/catalogo/providers/catalogo_providers.dart';
+import 'package:pasamanos/features/chat/data/chat_repository.dart';
+import 'package:pasamanos/features/chat/providers/chat_providers.dart';
 import 'package:pasamanos/features/home/presentation/home_screen.dart';
 import 'package:pasamanos/features/notificaciones/data/fcm_token_service.dart';
 import 'package:pasamanos/features/notificaciones/providers/notificaciones_providers.dart';
@@ -18,10 +20,13 @@ class _MockPublicacionRepository extends Mock implements PublicacionRepository {
 
 class _MockFcmTokenService extends Mock implements FcmTokenService {}
 
+class _MockChatRepository extends Mock implements ChatRepository {}
+
 void main() {
   late _MockAuthRepository mockAuthRepository;
   late _MockPublicacionRepository mockPublicacionRepository;
   late _MockFcmTokenService mockFcmTokenService;
+  late _MockChatRepository mockChatRepository;
 
   const usuario = AppUser(uid: 'uid-1', email: 'vendedora@example.com');
 
@@ -29,10 +34,14 @@ void main() {
     mockAuthRepository = _MockAuthRepository();
     mockPublicacionRepository = _MockPublicacionRepository();
     mockFcmTokenService = _MockFcmTokenService();
+    mockChatRepository = _MockChatRepository();
     when(() => mockAuthRepository.currentUser).thenReturn(usuario);
     when(
       () => mockFcmTokenService.registrarToken(any()),
     ).thenAnswer((_) async {});
+    when(
+      () => mockChatRepository.misConversaciones('uid-1'),
+    ).thenAnswer((_) => Stream.value(const []));
   });
 
   Future<void> pumpHomeScreen(WidgetTester tester) async {
@@ -44,6 +53,7 @@ void main() {
             mockPublicacionRepository,
           ),
           fcmTokenServiceProvider.overrideWithValue(mockFcmTokenService),
+          chatRepositoryProvider.overrideWithValue(mockChatRepository),
         ],
         child: const MaterialApp(home: HomeScreen()),
       ),

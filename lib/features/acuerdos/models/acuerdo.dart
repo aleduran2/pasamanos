@@ -30,6 +30,7 @@ class Acuerdo {
     this.pagoId,
     this.telefonoComprador,
     this.telefonoVendedor,
+    this.coordinacionDirecta = false,
   });
 
   final String id;
@@ -56,6 +57,12 @@ class Acuerdo {
   final String? telefonoComprador;
   final String? telefonoVendedor;
 
+  /// La compradora eligió coordinar la entrega directo por WhatsApp, sin
+  /// pagar dentro de la app (ni comisión para Pasamanos ni verificación de
+  /// identidad — esa es la contrapartida de la "compra protegida"). Una
+  /// vez elegido no se puede deshacer.
+  final bool coordinacionDirecta;
+
   factory Acuerdo.fromFirestore(String id, Map<String, dynamic> data) {
     final fechaRaw = data['fechaAcuerdo'];
     return Acuerdo(
@@ -72,6 +79,7 @@ class Acuerdo {
       pagoId: data['pagoId'] as String?,
       telefonoComprador: data['telefonoComprador'] as String?,
       telefonoVendedor: data['telefonoVendedor'] as String?,
+      coordinacionDirecta: data['coordinacionDirecta'] as bool? ?? false,
     );
   }
 }

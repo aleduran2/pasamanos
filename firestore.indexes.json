@@ -1,0 +1,22 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "acuerdos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "conversacionId", "order": "ASCENDING" },
+        { "fieldPath": "fechaAcuerdo", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "acuerdos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "conversacionId", "order": "ASCENDING" },
+        { "fieldPath": "participantes", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "fechaAcuerdo", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

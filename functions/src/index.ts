@@ -78,3 +78,5 @@ export { crearSesionVerificacion, diditWebhook } from "./didit";
 export { onNuevaCalificacion } from "./calificaciones";
 
 export { onNuevaPublicacionParaAlertas } from "./alertas";
+
+export { crearPreferenciaDestacada, destacarWebhook } from "./destacar";

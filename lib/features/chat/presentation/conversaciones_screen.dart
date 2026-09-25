@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/empty_state.dart';
+import '../../acuerdos/models/acuerdo.dart';
+import '../../acuerdos/providers/acuerdo_providers.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../models/conversacion.dart';
 import '../providers/chat_providers.dart';
@@ -61,13 +63,24 @@ class ConversacionesScreen extends ConsumerWidget {
                           color: colorScheme.onPrimaryContainer,
                         ),
                       ),
-                      title: Text(
-                        conversacion.publicacionTitulo,
-                        style: TextStyle(
-                          fontWeight: noLeido
-                              ? FontWeight.w800
-                              : FontWeight.w500,
-                        ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              conversacion.publicacionTitulo,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: noLeido
+                                    ? FontWeight.w800
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          _ChipEstadoTrato(
+                            conversacionId: conversacion.id,
+                            miUid: usuario.uid,
+                          ),
+                        ],
                       ),
                       subtitle: Text(
                         conversacion.ultimoMensaje ?? 'Sin mensajes todavía',
@@ -103,6 +116,80 @@ class ConversacionesScreen extends ConsumerWidget {
                 );
               },
             ),
+    );
+  }
+}
+
+/// Chip compacto con el estado del trato de esa conversación, para poder
+/// priorizar de un vistazo en la lista cuál necesita acción (en vez de
+/// tener que entrar a cada chat para saber si ya se pagó o ya se vendió).
+/// No se muestra nada mientras no hay un acuerdo cerrado — una conversación
+/// que todavía es solo una consulta no tiene "estado del trato".
+class _ChipEstadoTrato extends ConsumerWidget {
+  const _ChipEstadoTrato({required this.conversacionId, required this.miUid});
+
+  final String conversacionId;
+  final String miUid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return StreamBuilder<Acuerdo?>(
+      stream: ref
+          .read(acuerdoRepositoryProvider)
+          .observarPorConversacion(conversacionId, miUid: miUid),
+      builder: (context, snapshot) {
+        final acuerdo = snapshot.data;
+        if (acuerdo == null) return const SizedBox.shrink();
+
+        final colorScheme = Theme.of(context).colorScheme;
+        final (String texto, Color color, Color onColor) = switch (acuerdo
+            .estado) {
+          EstadoAcuerdo.completado => (
+            'Vendido',
+            colorScheme.secondaryContainer,
+            colorScheme.onSecondaryContainer,
+          ),
+          EstadoAcuerdo.cancelado => (
+            '',
+            colorScheme.surface,
+            colorScheme.surface,
+          ),
+          EstadoAcuerdo.activo => acuerdo.coordinacionDirecta
+              ? (
+                  'Trato directo',
+                  colorScheme.tertiaryContainer,
+                  colorScheme.onTertiaryContainer,
+                )
+              : acuerdo.estadoPago == 'approved'
+              ? (
+                  'Pagado',
+                  colorScheme.secondaryContainer,
+                  colorScheme.onSecondaryContainer,
+                )
+              : (
+                  'Pago pendiente',
+                  colorScheme.tertiaryContainer,
+                  colorScheme.onTertiaryContainer,
+                ),
+        };
+        if (texto.isEmpty) return const SizedBox.shrink();
+
+        return Container(
+          margin: const EdgeInsets.only(left: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            texto,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: onColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        );
+      },
     );
   }
 }

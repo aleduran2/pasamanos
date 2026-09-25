@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/data/talles.dart';
+import '../../../core/widgets/dialogo_botones.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../catalogo/models/publicacion.dart';
@@ -78,15 +79,13 @@ class _AlertasScreenState extends ConsumerState<AlertasScreen> {
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: categoria == null || talle == null
+            DialogoBotones(
+              textoCancelar: 'Cancelar',
+              textoConfirmar: 'Crear alerta',
+              onCancelar: () => Navigator.of(context).pop(false),
+              onConfirmar: categoria == null || talle == null
                   ? null
                   : () => Navigator.of(context).pop(true),
-              child: const Text('Crear alerta'),
             ),
           ],
         ),

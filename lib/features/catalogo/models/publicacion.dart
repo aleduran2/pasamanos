@@ -124,6 +124,7 @@ class Publicacion {
     this.estado = EstadoPublicacion.disponible,
     this.fechaPublicacion,
     this.vistas = 0,
+    this.destacadaHasta,
   });
 
   final String id;
@@ -145,6 +146,14 @@ class Publicacion {
   final EstadoPublicacion estado;
   final DateTime? fechaPublicacion;
   final int vistas;
+
+  /// Hasta cuándo está destacada (o `null` si nunca pagó por destacarse).
+  /// Lo escribe únicamente el backend cuando Mercado Pago confirma el pago
+  /// de "Publicación destacada" — el cliente nunca lo toca directamente.
+  final DateTime? destacadaHasta;
+
+  bool get estaDestacada =>
+      destacadaHasta != null && destacadaHasta!.isAfter(DateTime.now());
 
   Map<String, dynamic> toFirestore() {
     return {
@@ -186,6 +195,7 @@ class Publicacion {
       ),
       fechaPublicacion: fechaRaw is Timestamp ? fechaRaw.toDate() : null,
       vistas: (data['vistas'] as num?)?.toInt() ?? 0,
+      destacadaHasta: (data['destacadaHasta'] as Timestamp?)?.toDate(),
     );
   }
 }
