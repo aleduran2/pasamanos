@@ -662,6 +662,15 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                           fontWeight: FontWeight.w800,
                         ),
                       ),
+                      const Spacer(),
+                      TextButton(
+                        // Volver a correr el mismo flujo de OAuth simplemente
+                        // sobreescribe la cuenta conectada anterior — sirve
+                        // tanto para elegir otra cuenta real como para pasar
+                        // a una cuenta de prueba de Mercado Pago al testear.
+                        onPressed: _conectarMercadoPago,
+                        child: const Text('Cambiar cuenta'),
+                      ),
                     ],
                   )
                 else
