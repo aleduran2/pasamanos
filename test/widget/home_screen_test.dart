@@ -102,4 +102,55 @@ void main() {
     expect(find.text('Guardapolvo talle 8'), findsOneWidget);
     expect(find.text('\$ 5.000'), findsOneWidget);
   });
+
+  testWidgets('tocar "Activas" filtra la lista a solo las disponibles', (
+    tester,
+  ) async {
+    when(() => mockPublicacionRepository.listarPorVendedor('uid-1')).thenAnswer(
+      (_) async => [
+        const Publicacion(
+          id: 'pub-1',
+          vendedorId: 'uid-1',
+          titulo: 'Guardapolvo talle 8',
+          descripcion: 'Usado, buen estado',
+          categoria: Categoria.uniformes,
+          etapaEdad: EtapaEdad.primaria,
+          precio: 5000,
+          estado: EstadoPublicacion.disponible,
+          fotos: FotosPublicacion(frente: 'https://example.com/frente.jpg'),
+        ),
+        const Publicacion(
+          id: 'pub-2',
+          vendedorId: 'uid-1',
+          titulo: 'Campera talle 10',
+          descripcion: 'Usado, buen estado',
+          categoria: Categoria.ropa,
+          etapaEdad: EtapaEdad.primaria,
+          precio: 7000,
+          estado: EstadoPublicacion.vendido,
+          fotos: FotosPublicacion(frente: 'https://example.com/frente.jpg'),
+        ),
+      ],
+    );
+
+    await pumpHomeScreen(tester);
+
+    // Antes de filtrar se ven las dos publicaciones.
+    expect(find.text('Guardapolvo talle 8'), findsOneWidget);
+    expect(find.text('Campera talle 10'), findsOneWidget);
+
+    await tester.tap(find.text('Activas'));
+    await tester.pumpAndSettle();
+
+    // Filtrado: solo queda la disponible, y aparece el botón para deshacerlo.
+    expect(find.text('Guardapolvo talle 8'), findsOneWidget);
+    expect(find.text('Campera talle 10'), findsNothing);
+    expect(find.text('Ver todas'), findsOneWidget);
+
+    await tester.tap(find.text('Ver todas'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Guardapolvo talle 8'), findsOneWidget);
+    expect(find.text('Campera talle 10'), findsOneWidget);
+  });
 }

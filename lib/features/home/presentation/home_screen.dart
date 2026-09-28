@@ -29,6 +29,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   late Future<List<Publicacion>> _futuro;
 
+  /// Filtro de "Mis publicaciones" activado al tocar la tarjeta "Activas".
+  bool _soloActivas = false;
+
   @override
   void initState() {
     super.initState();
@@ -163,6 +166,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final activas = publicaciones
               .where((p) => p.estado == EstadoPublicacion.disponible)
               .length;
+          final publicacionesAMostrar = _soloActivas
+              ? publicaciones
+                    .where((p) => p.estado == EstadoPublicacion.disponible)
+                    .toList()
+              : publicaciones;
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
@@ -241,6 +249,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           valor: '$activas',
                           color: colorScheme.primaryContainer,
                           colorTexto: colorScheme.onPrimaryContainer,
+                          seleccionado: _soloActivas,
+                          onTap: () =>
+                              setState(() => _soloActivas = !_soloActivas),
                         ),
                       ),
                     if (activas > 0 && vistasTotales > 0)
@@ -259,11 +270,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ],
               const SizedBox(height: 24),
-              Text(
-                'Mis publicaciones',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+              Row(
+                children: [
+                  Text(
+                    _soloActivas ? 'Mis publicaciones activas' : 'Mis publicaciones',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (_soloActivas) ...[
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => setState(() => _soloActivas = false),
+                      child: const Text('Ver todas'),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 12),
               if (publicaciones.isEmpty)
@@ -284,8 +306,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ],
                   ),
                 )
+              else if (publicacionesAMostrar.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: EmptyState(
+                    icon: Icons.inventory_2_outlined,
+                    mensaje: 'No tenés publicaciones activas ahora mismo.',
+                  ),
+                )
               else
-                ...publicaciones.map(
+                ...publicacionesAMostrar.map(
                   (publicacion) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: PublicacionListTile(
@@ -410,6 +440,7 @@ class _TarjetaAccion extends StatelessWidget {
     this.valor,
     this.onTap,
     this.badge,
+    this.seleccionado = false,
   });
 
   final IconData icono;
@@ -424,6 +455,12 @@ class _TarjetaAccion extends StatelessWidget {
   /// forma de darse cuenta desde el Home que alguien le escribió, más que
   /// entrando a "Mensajes" a mirar.
   final int? badge;
+
+  /// Si esta tarjeta actúa como filtro activo (p. ej. "Activas" cuando la
+  /// lista de abajo ya está filtrada), se lo marca con un borde para que
+  /// quede claro que está aplicado — sin esto no había ninguna señal de
+  /// que tocarla hizo algo.
+  final bool seleccionado;
 
   @override
   Widget build(BuildContext context) {
@@ -453,25 +490,45 @@ class _TarjetaAccion extends StatelessWidget {
       ],
     );
 
+    // Una tarjeta sin onTap es pura estadística (no hace nada al tocarla)
+    // — se pinta apagada, solo con borde, para que no invite a tocarla
+    // como si fuera un botón. Las que sí son acción quedan con el relleno
+    // de color de siempre, y si están "seleccionadas" (un filtro activo)
+    // suman un borde marcado para confirmar que el toque tuvo efecto.
+    final esSoloEstadistica = onTap == null;
+
     final tarjeta = Material(
-      color: color,
+      color: esSoloEstadistica ? Colors.transparent : color,
       borderRadius: BorderRadius.circular(16),
-      child: onTap == null
-          ? Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-              child: contenido,
-            )
-          : InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: onTap,
-              child: Padding(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: esSoloEstadistica
+              ? Border.all(color: colorTexto.withValues(alpha: 0.3))
+              : (seleccionado
+                    ? Border.all(color: colorTexto, width: 2)
+                    : null),
+        ),
+        child: esSoloEstadistica
+            ? Padding(
                 padding: const EdgeInsets.symmetric(
                   vertical: 14,
                   horizontal: 8,
                 ),
                 child: contenido,
+              )
+            : InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 14,
+                    horizontal: 8,
+                  ),
+                  child: contenido,
+                ),
               ),
-            ),
+      ),
     );
 
     if (badge == null || badge == 0) return tarjeta;
