@@ -755,6 +755,16 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                         : _cambiarNotificaciones,
                   ),
           ),
+          const SizedBox(height: 16),
+          Center(
+            child: TextButton(
+              onPressed: () => launchUrl(
+                Uri.parse('https://pasamanos-dev.web.app/privacidad.html'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: const Text('Política de privacidad'),
+            ),
+          ),
         ],
       ),
     );

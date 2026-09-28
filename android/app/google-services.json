@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "304468409357-m50j09v697ho2sddedgeadp9tr9mem7s.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pasamanos.pasamanos",
+            "certificate_hash": "6367f1f5fc97c6965987178ac80200c5d6b449ed"
+          }
+        },
+        {
           "client_id": "304468409357-usied6eia3a0up3gtmrebup8frndn75d.apps.googleusercontent.com",
           "client_type": 3
         }

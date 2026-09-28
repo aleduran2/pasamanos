@@ -220,11 +220,21 @@ export const crearPreferenciaPago = onCall(
 
     await acuerdoRef.update({ preferenceId: preferencia.id });
 
-    // Sandbox siempre: acá no hay forma de que esto termine cobrando algo
-    // real mientras la cuenta conectada sea una cuenta de prueba de MP.
-    const initPoint =
-      (preferencia.sandbox_init_point as string | undefined) ??
-      (preferencia.init_point as string | undefined);
+    // Sandbox siempre durante el desarrollo: nunca caer a `init_point`
+    // (producción) aunque no venga `sandbox_init_point` — eso pasaría si
+    // la cuenta que la vendedora conectó no es una cuenta de prueba, y
+    // preferimos cortar la operación antes que arriesgarnos a cobrar
+    // plata real sin querer.
+    const initPoint = preferencia.sandbox_init_point as string | undefined;
+    if (!initPoint) {
+      logger.error(
+        `crearPreferenciaPago: MP no devolvió sandbox_init_point para acuerdoId=${acuerdoId} — ¿la vendedora conectó una cuenta que no es de prueba? ${JSON.stringify(preferencia)}`
+      );
+      throw new HttpsError(
+        "failed-precondition",
+        "El pago todavía está en modo de prueba — la vendedora debe conectar una cuenta de Mercado Pago de prueba."
+      );
+    }
 
     return { initPoint };
   }

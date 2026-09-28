@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/auth_providers.dart';
 import 'auth_error_messages.dart';
@@ -46,6 +47,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
+  }
+
+  Future<void> _abrirPoliticaPrivacidad() async {
+    await launchUrl(
+      Uri.parse('https://pasamanos-dev.web.app/privacidad.html'),
+      mode: LaunchMode.externalApplication,
+    );
   }
 
   @override
@@ -120,6 +128,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Text('Crear cuenta'),
+                ),
+                const SizedBox(height: 10),
+                Center(
+                  child: TextButton(
+                    onPressed: _abrirPoliticaPrivacidad,
+                    child: const Text(
+                      'Al crear tu cuenta, aceptás nuestra Política de '
+                      'privacidad',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
                 ),
               ],
             ),

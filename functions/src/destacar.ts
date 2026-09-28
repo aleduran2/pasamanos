@@ -83,9 +83,23 @@ export const crearPreferenciaDestacada = onCall(
       throw new HttpsError("internal", "No se pudo generar el link de pago.");
     }
 
-    const initPoint =
-      (preferencia.sandbox_init_point as string | undefined) ??
-      (preferencia.init_point as string | undefined);
+    // A diferencia de `crearPreferenciaPago` (que depende de que CADA
+    // vendedora haya conectado una cuenta de prueba), acá el access_token
+    // es uno solo, fijo, de Pasamanos — así que la única forma real de
+    // garantizar que esto nunca cobre plata de verdad es no aceptar nunca
+    // `init_point` (producción), solo `sandbox_init_point`. Si no viene
+    // (porque el secret tiene un token de producción cargado), se corta
+    // acá en vez de arriesgarse a cobrar de verdad.
+    const initPoint = preferencia.sandbox_init_point as string | undefined;
+    if (!initPoint) {
+      logger.error(
+        `crearPreferenciaDestacada: MP no devolvió sandbox_init_point para publicacionId=${publicacionId} — ¿MERCADOPAGO_ACCESS_TOKEN es de producción? ${JSON.stringify(preferencia)}`
+      );
+      throw new HttpsError(
+        "failed-precondition",
+        "Destacar publicaciones todavía está en modo de prueba."
+      );
+    }
 
     return { initPoint };
   }
