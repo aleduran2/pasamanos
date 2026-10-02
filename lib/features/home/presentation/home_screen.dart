@@ -264,6 +264,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           valor: '$vistasTotales',
                           color: colorScheme.secondaryContainer,
                           colorTexto: colorScheme.onSecondaryContainer,
+                          info:
+                              'Cuántas veces entraron a ver el detalle de '
+                              'tus publicaciones (sin contar tus propias '
+                              'visitas). Suma todas tus publicaciones, '
+                              'incluidas las que ya vendiste — podés ver '
+                              'cuántas vistas tiene cada una en la lista '
+                              'de abajo.',
                         ),
                       ),
                   ],
@@ -441,6 +448,7 @@ class _TarjetaAccion extends StatelessWidget {
     this.onTap,
     this.badge,
     this.seleccionado = false,
+    this.info,
   });
 
   final IconData icono;
@@ -449,6 +457,11 @@ class _TarjetaAccion extends StatelessWidget {
   final Color colorTexto;
   final String? valor;
   final VoidCallback? onTap;
+
+  /// Aclaración mostrada en un diálogo al tocar el ícono de información —
+  /// para estadísticas cuyo significado no es obvio solo con la etiqueta
+  /// (p. ej. qué cuenta como "vista" en "Vistas totales").
+  final String? info;
 
   /// Cantidad a mostrar en el globito rojo arriba a la derecha (p. ej.
   /// conversaciones sin leer) — sin esto, la vendedora no tenía ninguna
@@ -531,7 +544,46 @@ class _TarjetaAccion extends StatelessWidget {
       ),
     );
 
-    if (badge == null || badge == 0) return tarjeta;
+    Widget resultado = tarjeta;
+
+    if (info != null) {
+      resultado = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          SizedBox(width: double.infinity, child: resultado),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text(etiqueta),
+                  content: Text(info!),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Entendido'),
+                    ),
+                  ],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.info_outline_rounded,
+                  size: 16,
+                  color: colorTexto.withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (badge == null || badge == 0) return resultado;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -540,7 +592,7 @@ class _TarjetaAccion extends StatelessWidget {
         // vez de las "tight" que daba el Expanded de antes — sin este
         // SizedBox la tarjeta se encoge a su contenido y el badge, ubicado
         // relativo al Stack entero, queda flotando lejos de ella.
-        SizedBox(width: double.infinity, child: tarjeta),
+        SizedBox(width: double.infinity, child: resultado),
         Positioned(
           top: -6,
           right: -6,

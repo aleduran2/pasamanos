@@ -153,4 +153,34 @@ void main() {
     expect(find.text('Guardapolvo talle 8'), findsOneWidget);
     expect(find.text('Campera talle 10'), findsOneWidget);
   });
+
+  testWidgets('tocar el ícono de info de "Vistas totales" explica qué es', (
+    tester,
+  ) async {
+    when(() => mockPublicacionRepository.listarPorVendedor('uid-1')).thenAnswer(
+      (_) async => [
+        const Publicacion(
+          id: 'pub-1',
+          vendedorId: 'uid-1',
+          titulo: 'Guardapolvo talle 8',
+          descripcion: 'Usado, buen estado',
+          categoria: Categoria.uniformes,
+          etapaEdad: EtapaEdad.primaria,
+          precio: 5000,
+          vistas: 3,
+          fotos: FotosPublicacion(frente: 'https://example.com/frente.jpg'),
+        ),
+      ],
+    );
+
+    await pumpHomeScreen(tester);
+
+    expect(find.text('Vistas totales'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.info_outline_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Entendido'), findsOneWidget);
+    expect(find.textContaining('entraron a ver el detalle'), findsOneWidget);
+  });
 }
