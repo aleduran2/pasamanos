@@ -154,7 +154,7 @@ void main() {
     expect(find.text('Campera talle 10'), findsOneWidget);
   });
 
-  testWidgets('tocar el ícono de info de "Vistas totales" explica qué es', (
+  testWidgets('tocar "Vistas totales" ordena la lista de más a menos vistas', (
     tester,
   ) async {
     when(() => mockPublicacionRepository.listarPorVendedor('uid-1')).thenAnswer(
@@ -167,7 +167,18 @@ void main() {
           categoria: Categoria.uniformes,
           etapaEdad: EtapaEdad.primaria,
           precio: 5000,
-          vistas: 3,
+          vistas: 2,
+          fotos: FotosPublicacion(frente: 'https://example.com/frente.jpg'),
+        ),
+        const Publicacion(
+          id: 'pub-2',
+          vendedorId: 'uid-1',
+          titulo: 'Campera talle 10',
+          descripcion: 'Usado, buen estado',
+          categoria: Categoria.ropa,
+          etapaEdad: EtapaEdad.primaria,
+          precio: 7000,
+          vistas: 9,
           fotos: FotosPublicacion(frente: 'https://example.com/frente.jpg'),
         ),
       ],
@@ -175,12 +186,26 @@ void main() {
 
     await pumpHomeScreen(tester);
 
-    expect(find.text('Vistas totales'), findsOneWidget);
+    // Antes de ordenar, aparecen en el orden que las devuelve el repositorio.
+    var titulos = tester
+        .widgetList<Text>(find.textContaining('talle'))
+        .map((t) => t.data)
+        .toList();
+    expect(titulos, ['Guardapolvo talle 8', 'Campera talle 10']);
 
-    await tester.tap(find.byIcon(Icons.info_outline_rounded));
+    await tester.tap(find.text('Vistas totales'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Entendido'), findsOneWidget);
-    expect(find.textContaining('entraron a ver el detalle'), findsOneWidget);
+    expect(find.text('Mis publicaciones, ordenadas por vistas'), findsOneWidget);
+    titulos = tester
+        .widgetList<Text>(find.textContaining('talle'))
+        .map((t) => t.data)
+        .toList();
+    expect(titulos, ['Campera talle 10', 'Guardapolvo talle 8']);
+
+    await tester.tap(find.text('Ver todas'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mis publicaciones'), findsOneWidget);
   });
 }

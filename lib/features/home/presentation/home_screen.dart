@@ -32,6 +32,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// Filtro de "Mis publicaciones" activado al tocar la tarjeta "Activas".
   bool _soloActivas = false;
 
+  /// Orden de "Mis publicaciones" activado al tocar la tarjeta "Vistas
+  /// totales" — mostrar qué publicación atrae más vistas es más útil que
+  /// solo explicar el número en un diálogo.
+  bool _ordenarPorVistas = false;
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +94,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _futuro = _cargarMisPublicaciones();
       });
     }
+  }
+
+  String get _tituloListaPublicaciones {
+    if (_soloActivas && _ordenarPorVistas) {
+      return 'Activas, ordenadas por vistas';
+    }
+    if (_soloActivas) return 'Mis publicaciones activas';
+    if (_ordenarPorVistas) return 'Mis publicaciones, ordenadas por vistas';
+    return 'Mis publicaciones';
   }
 
   Future<void> _irAPerfil() async {
@@ -170,7 +184,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ? publicaciones
                     .where((p) => p.estado == EstadoPublicacion.disponible)
                     .toList()
-              : publicaciones;
+              : List<Publicacion>.from(publicaciones);
+          if (_ordenarPorVistas) {
+            publicacionesAMostrar.sort((a, b) => b.vistas.compareTo(a.vistas));
+          }
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
@@ -264,13 +281,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           valor: '$vistasTotales',
                           color: colorScheme.secondaryContainer,
                           colorTexto: colorScheme.onSecondaryContainer,
-                          info:
-                              'Cuántas veces entraron a ver el detalle de '
-                              'tus publicaciones (sin contar tus propias '
-                              'visitas). Suma todas tus publicaciones, '
-                              'incluidas las que ya vendiste — podés ver '
-                              'cuántas vistas tiene cada una en la lista '
-                              'de abajo.',
+                          seleccionado: _ordenarPorVistas,
+                          onTap: () => setState(
+                            () => _ordenarPorVistas = !_ordenarPorVistas,
+                          ),
                         ),
                       ),
                   ],
@@ -279,19 +293,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  Text(
-                    _soloActivas ? 'Mis publicaciones activas' : 'Mis publicaciones',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+                  Expanded(
+                    child: Text(
+                      _tituloListaPublicaciones,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                  if (_soloActivas) ...[
-                    const Spacer(),
+                  if (_soloActivas || _ordenarPorVistas)
                     TextButton(
-                      onPressed: () => setState(() => _soloActivas = false),
+                      onPressed: () => setState(() {
+                        _soloActivas = false;
+                        _ordenarPorVistas = false;
+                      }),
                       child: const Text('Ver todas'),
                     ),
-                  ],
                 ],
               ),
               const SizedBox(height: 12),
@@ -448,7 +467,6 @@ class _TarjetaAccion extends StatelessWidget {
     this.onTap,
     this.badge,
     this.seleccionado = false,
-    this.info,
   });
 
   final IconData icono;
@@ -457,11 +475,6 @@ class _TarjetaAccion extends StatelessWidget {
   final Color colorTexto;
   final String? valor;
   final VoidCallback? onTap;
-
-  /// Aclaración mostrada en un diálogo al tocar el ícono de información —
-  /// para estadísticas cuyo significado no es obvio solo con la etiqueta
-  /// (p. ej. qué cuenta como "vista" en "Vistas totales").
-  final String? info;
 
   /// Cantidad a mostrar en el globito rojo arriba a la derecha (p. ej.
   /// conversaciones sin leer) — sin esto, la vendedora no tenía ninguna
@@ -544,46 +557,7 @@ class _TarjetaAccion extends StatelessWidget {
       ),
     );
 
-    Widget resultado = tarjeta;
-
-    if (info != null) {
-      resultado = Stack(
-        clipBehavior: Clip.none,
-        children: [
-          SizedBox(width: double.infinity, child: resultado),
-          Positioned(
-            top: 2,
-            right: 2,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => showDialog<void>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(etiqueta),
-                  content: Text(info!),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Entendido'),
-                    ),
-                  ],
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  Icons.info_outline_rounded,
-                  size: 16,
-                  color: colorTexto.withValues(alpha: 0.7),
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (badge == null || badge == 0) return resultado;
+    if (badge == null || badge == 0) return tarjeta;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -592,7 +566,7 @@ class _TarjetaAccion extends StatelessWidget {
         // vez de las "tight" que daba el Expanded de antes — sin este
         // SizedBox la tarjeta se encoge a su contenido y el badge, ubicado
         // relativo al Stack entero, queda flotando lejos de ella.
-        SizedBox(width: double.infinity, child: resultado),
+        SizedBox(width: double.infinity, child: tarjeta),
         Positioned(
           top: -6,
           right: -6,
