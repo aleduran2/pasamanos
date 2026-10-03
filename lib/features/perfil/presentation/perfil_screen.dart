@@ -813,20 +813,36 @@ class _EstadoKyc extends StatelessWidget {
           ],
         );
       case EstadoVerificacion.pendiente:
-        return Row(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colorScheme.onSurfaceVariant,
-              ),
+            Row(
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Verificación en proceso...',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            Text(
-              'Verificación en proceso...',
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            const SizedBox(height: 8),
+            // Si no se llegó a completar el trámite en Didit (se cerró la
+            // pestaña, se perdió la conexión, etc.), sin esto no había
+            // ninguna forma de reintentar — quedaba esperando para
+            // siempre un webhook que nunca iba a llegar.
+            TextButton(
+              onPressed: verificando ? null : onVerificar,
+              child: const Text('¿No completaste el trámite? Reintentar'),
             ),
           ],
         );
