@@ -33,6 +33,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- El driver de GPU de algunos dispositivos (confirmado: errores
+             "gralloc4 / AHardwareBuffer: formato no soportado" en el log,
+             justo al iniciar) no es del todo compatible con Impeller
+             (Vulkan), el motor de render que Flutter usa por defecto en
+             Android — eso coincide con crashes de renderizado
+             ('_owner != null' en RenderObject) al volver atrás desde una
+             pantalla. Se vuelve al motor Skia, mucho más probado. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

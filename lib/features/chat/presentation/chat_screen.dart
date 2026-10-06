@@ -36,7 +36,8 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with WidgetsBindingObserver {
   final _mensajeController = TextEditingController();
 
   Publicacion? _publicacion;
@@ -61,6 +62,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _chatRepository = ref.read(chatRepositoryProvider);
     _acuerdoRepository = ref.read(acuerdoRepositoryProvider);
     _miUid = ref.read(authRepositoryProvider).currentUser?.uid;
@@ -68,6 +70,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _observarAcuerdo();
     _cargarEstadoVerificacion();
     _marcarComoLeido();
+  }
+
+  // Si la pantalla se apaga (o la app pasa a segundo plano) con el chat
+  // abierto, Android detiene y vuelve a crear la superficie de dibujo al
+  // desbloquear — un evento de Firestore que llega justo en esa ventana y
+  // dispara un setState() (p. ej. un cambio de estado del acuerdo) puede
+  // pisarse con esa reconstrucción y romper el árbol de render ("_owner !=
+  // null" al tocar "volver" después). Pausar la suscripción mientras no
+  // está visible evita esa carrera.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final sub = _acuerdoSub;
+    if (sub == null) return;
+    if (state == AppLifecycleState.resumed) {
+      if (sub.isPaused) sub.resume();
+    } else if (!sub.isPaused) {
+      sub.pause();
+    }
   }
 
   Future<void> _cargarEstadoVerificacion() async {
@@ -410,6 +430,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // De vuelta al salir, por si llegaron mensajes nuevos mientras la
     // pantalla estaba abierta (el primer marcado, en initState, no los
     // habría cubierto).
