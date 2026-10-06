@@ -59,12 +59,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   String? _miUid;
   StreamSubscription<Acuerdo?>? _acuerdoSub;
 
+  // Si se llama a `_chatRepository.mensajes(...)` directo desde build() (como
+  // estaba antes), cada setState() de esta pantalla —y hay muchos: el propio
+  // stream del acuerdo, la verificación, el estado de la publicación—
+  // genera un Stream nuevo. StreamBuilder lo detecta como "cambió el
+  // stream" y cierra la suscripción de mensajes vieja para abrir una
+  // nueva, en cada rebuild. Guardarlo acá evita ese churn.
+  late final Stream<List<Mensaje>> _mensajesStream;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _chatRepository = ref.read(chatRepositoryProvider);
     _acuerdoRepository = ref.read(acuerdoRepositoryProvider);
+    _mensajesStream = _chatRepository.mensajes(widget.conversacion.id);
     _miUid = ref.read(authRepositoryProvider).currentUser?.uid;
     _cargarPublicacion();
     _observarAcuerdo();
@@ -607,7 +616,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   Widget build(BuildContext context) {
     final miUid = ref.read(authRepositoryProvider).currentUser?.uid;
-    final ChatRepository chatRepository = ref.read(chatRepositoryProvider);
 
     final publicacion = _publicacion;
     final puedoOfrecerCierre =
@@ -778,7 +786,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
           Expanded(
             child: StreamBuilder<List<Mensaje>>(
-              stream: chatRepository.mensajes(widget.conversacion.id),
+              stream: _mensajesStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
