@@ -125,18 +125,31 @@ class ConversacionesScreen extends ConsumerWidget {
 /// tener que entrar a cada chat para saber si ya se pagó o ya se vendió).
 /// No se muestra nada mientras no hay un acuerdo cerrado — una conversación
 /// que todavía es solo una consulta no tiene "estado del trato".
-class _ChipEstadoTrato extends ConsumerWidget {
+class _ChipEstadoTrato extends ConsumerStatefulWidget {
   const _ChipEstadoTrato({required this.conversacionId, required this.miUid});
 
   final String conversacionId;
   final String miUid;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ChipEstadoTrato> createState() => _ChipEstadoTratoState();
+}
+
+class _ChipEstadoTratoState extends ConsumerState<_ChipEstadoTrato> {
+  // Creado una sola vez: si se llama a `observarPorConversacion(...)` desde
+  // `build()` (como estaba antes, al ser un ConsumerWidget sin estado),
+  // cada rebuild de esta fila — y en una lista pasa seguido, por cualquier
+  // cambio en `misConversaciones` — arma un Stream nuevo. StreamBuilder lo
+  // detecta como "cambió el stream" y cancela la suscripción vieja para
+  // abrir una nueva, en cada fila visible, en cada rebuild de la lista.
+  late final Stream<Acuerdo?> _stream = ref
+      .read(acuerdoRepositoryProvider)
+      .observarPorConversacion(widget.conversacionId, miUid: widget.miUid);
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<Acuerdo?>(
-      stream: ref
-          .read(acuerdoRepositoryProvider)
-          .observarPorConversacion(conversacionId, miUid: miUid),
+      stream: _stream,
       builder: (context, snapshot) {
         final acuerdo = snapshot.data;
         if (acuerdo == null) return const SizedBox.shrink();
