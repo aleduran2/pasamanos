@@ -103,7 +103,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final uid = _miUid;
     if (uid == null) return;
     try {
-      final perfil = await ref.read(userProfileRepositoryProvider).obtenerPorId(uid);
+      final perfil = await ref
+          .read(userProfileRepositoryProvider)
+          .obtenerPorId(uid);
       if (mounted && perfil != null) {
         setState(() => _miEstadoVerificacion = perfil.estadoVerificacion);
       }
@@ -144,7 +146,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           },
           onError: (Object error, StackTrace stackTrace) {
             if (kDebugMode) {
-              debugPrint('ChatScreen._observarAcuerdo error: $error\n$stackTrace');
+              debugPrint(
+                'ChatScreen._observarAcuerdo error: $error\n$stackTrace',
+              );
             }
           },
         );
@@ -350,11 +354,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     setState(() => _pagando = true);
     try {
-      final resultado = await FirebaseFunctions.instanceFor(
-        region: 'southamerica-east1',
-      ).httpsCallable('crearPreferenciaPago').call<Map<String, dynamic>>({
-        'acuerdoId': acuerdo.id,
-      });
+      final resultado =
+          await FirebaseFunctions.instanceFor(region: 'southamerica-east1')
+              .httpsCallable('crearPreferenciaPago')
+              .call<Map<String, dynamic>>({'acuerdoId': acuerdo.id});
       final initPoint = resultado.data['initPoint'] as String?;
       if (initPoint == null) throw Exception('Sin link de pago');
 
@@ -493,9 +496,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
     if (confirmado != true) return;
 
-    final precio = double.tryParse(
-      precioController.text.replaceAll(',', '.'),
-    );
+    final precio = double.tryParse(precioController.text.replaceAll(',', '.'));
     if (precio == null || precio <= 0) return;
 
     final usuario = ref.read(authRepositoryProvider).currentUser;
@@ -565,7 +566,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo actualizar la publicación.')),
+          const SnackBar(
+            content: Text('No se pudo actualizar la publicación.'),
+          ),
         );
       }
     } finally {
@@ -605,7 +608,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo actualizar la publicación.')),
+          const SnackBar(
+            content: Text('No se pudo actualizar la publicación.'),
+          ),
         );
       }
     } finally {
@@ -692,213 +697,231 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             if (necesitaVerificacion)
               _PasoFlujo(
                 label: 'Verificación',
-                completado: _miEstadoVerificacion == EstadoVerificacion.verificado,
+                completado:
+                    _miEstadoVerificacion == EstadoVerificacion.verificado,
               ),
             _PasoFlujo(label: 'Pago', completado: pagoAprobado),
             _PasoFlujo(label: 'WhatsApp', completado: whatsappCompleto),
             _PasoFlujo(label: 'Calificación', completado: _yaCalifique),
           ];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: InkWell(
-          onTap: publicacion == null
-              ? null
-              : () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        PublicacionDetailScreen(publicacion: publicacion),
+    // "Volver" (flecha, gesto o botón físico) siempre manda directo al
+    // Home en vez de hacer un pop normal a "Mensajes" — mitigación mientras
+    // se sigue investigando un crash de renderizado ("_owner != null")
+    // que a veces ocurre justo en ese pop, con causa todavía no
+    // confirmada del todo. Ir directo al Home evita pasar por la lista de
+    // conversaciones, que es donde se vio el error.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: InkWell(
+            onTap: publicacion == null
+                ? null
+                : () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PublicacionDetailScreen(publicacion: publicacion),
+                    ),
+                  ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    widget.conversacion.publicacionTitulo,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  widget.conversacion.publicacionTitulo,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (publicacion != null)
-                const Icon(Icons.chevron_right_rounded, size: 20),
-            ],
+                if (publicacion != null)
+                  const Icon(Icons.chevron_right_rounded, size: 20),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          // "Cerrar acuerdo" vive como banner en el cuerpo del chat (más
-          // visible que un botón chico acá) y "Marcar como vendido" tiene
-          // su propio banner una vez que el pago está aprobado — acá arriba
-          // solo queda la vía de escape para deshacer una reserva.
-          if (puedoGestionarReserva)
-            IconButton(
-              tooltip: 'Cancelar reserva',
-              onPressed: _cambiandoEstado ? null : _cancelarReserva,
-              icon: const Icon(Icons.undo_rounded),
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (pasos.isNotEmpty) _StepperTrato(pasos: pasos),
-          if (puedoOfrecerCierre)
-            _BannerCerrarAcuerdo(
-              cerrando: _cerrandoAcuerdo,
-              onCerrar: _abrirDialogoCerrarAcuerdo,
-            ),
-          if (necesitaVerificacion &&
-              _miEstadoVerificacion != EstadoVerificacion.verificado)
-            _BannerDeVerificacion(
-              onIrAVerificar: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PerfilScreen()),
+          actions: [
+            // "Cerrar acuerdo" vive como banner en el cuerpo del chat (más
+            // visible que un botón chico acá) y "Marcar como vendido" tiene
+            // su propio banner una vez que el pago está aprobado — acá arriba
+            // solo queda la vía de escape para deshacer una reserva.
+            if (puedoGestionarReserva)
+              IconButton(
+                tooltip: 'Cancelar reserva',
+                onPressed: _cambiandoEstado ? null : _cancelarReserva,
+                icon: const Icon(Icons.undo_rounded),
               ),
-            ),
-          if (esComprador && faltaElegirCamino && acuerdo.estado == EstadoAcuerdo.activo)
-            _BannerElegirCamino(
-              acuerdo: acuerdo,
-              pagando: _pagando,
-              eligiendoDirecto: _eligiendoTratoDirecto,
-              onPagar: _pagar,
-              onElegirDirecto: _abrirDialogoTratoDirecto,
-            ),
-          if (esperandoPago) _BannerEsperandoPago(acuerdo: _acuerdoActivo!),
-          if (puedoMarcarVendido)
-            _BannerMarcarVendido(
-              coordinacionDirecta: coordinacionDirecta,
-              procesando: _cambiandoEstado,
-              onMarcarVendido: _marcarVendido,
-            ),
-          if (puedoCompartirWhatsapp)
-            _BannerWhatsapp(
-              miTelefono: miTelefono,
-              otroTelefono: otroTelefono,
-              compartiendo: _compartiendoTelefono,
-              onCompartir: _compartirWhatsapp,
-              onAbrir: otroTelefono == null
-                  ? null
-                  : () => _abrirWhatsapp(otroTelefono),
-            ),
-          if (acuerdo != null &&
-              acuerdo.estado == EstadoAcuerdo.completado &&
-              !_yaCalifique)
-            _BannerCalificar(
-              enviando: _enviandoCalificacion,
-              onCalificar: _abrirDialogoCalificar,
-            ),
-          Expanded(
-            child: StreamBuilder<List<Mensaje>>(
-              stream: _mensajesStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return const EmptyState(
-                    icon: Icons.error_outline_rounded,
-                    mensaje: 'No se pudieron cargar los mensajes.',
-                  );
-                }
-                final mensajes = snapshot.data ?? [];
-                if (mensajes.isEmpty) {
-                  return const EmptyState(
-                    icon: Icons.waving_hand_outlined,
-                    mensaje: 'Escribí el primer mensaje.',
-                  );
-                }
-                return ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: mensajes.length,
-                  itemBuilder: (context, index) {
-                    final mensaje = mensajes[mensajes.length - 1 - index];
-                    if (mensaje.tipo == TipoMensaje.sistema) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Center(
+          ],
+        ),
+        body: Column(
+          children: [
+            if (pasos.isNotEmpty) _StepperTrato(pasos: pasos),
+            if (puedoOfrecerCierre)
+              _BannerCerrarAcuerdo(
+                cerrando: _cerrandoAcuerdo,
+                onCerrar: _abrirDialogoCerrarAcuerdo,
+              ),
+            if (necesitaVerificacion &&
+                _miEstadoVerificacion != EstadoVerificacion.verificado)
+              _BannerDeVerificacion(
+                onIrAVerificar: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const PerfilScreen())),
+              ),
+            if (esComprador &&
+                faltaElegirCamino &&
+                acuerdo.estado == EstadoAcuerdo.activo)
+              _BannerElegirCamino(
+                acuerdo: acuerdo,
+                pagando: _pagando,
+                eligiendoDirecto: _eligiendoTratoDirecto,
+                onPagar: _pagar,
+                onElegirDirecto: _abrirDialogoTratoDirecto,
+              ),
+            if (esperandoPago) _BannerEsperandoPago(acuerdo: _acuerdoActivo!),
+            if (puedoMarcarVendido)
+              _BannerMarcarVendido(
+                coordinacionDirecta: coordinacionDirecta,
+                procesando: _cambiandoEstado,
+                onMarcarVendido: _marcarVendido,
+              ),
+            if (puedoCompartirWhatsapp)
+              _BannerWhatsapp(
+                miTelefono: miTelefono,
+                otroTelefono: otroTelefono,
+                compartiendo: _compartiendoTelefono,
+                onCompartir: _compartirWhatsapp,
+                onAbrir: otroTelefono == null
+                    ? null
+                    : () => _abrirWhatsapp(otroTelefono),
+              ),
+            if (acuerdo != null &&
+                acuerdo.estado == EstadoAcuerdo.completado &&
+                !_yaCalifique)
+              _BannerCalificar(
+                enviando: _enviandoCalificacion,
+                onCalificar: _abrirDialogoCalificar,
+              ),
+            Expanded(
+              child: StreamBuilder<List<Mensaje>>(
+                stream: _mensajesStream,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return const EmptyState(
+                      icon: Icons.error_outline_rounded,
+                      mensaje: 'No se pudieron cargar los mensajes.',
+                    );
+                  }
+                  final mensajes = snapshot.data ?? [];
+                  if (mensajes.isEmpty) {
+                    return const EmptyState(
+                      icon: Icons.waving_hand_outlined,
+                      mensaje: 'Escribí el primer mensaje.',
+                    );
+                  }
+                  return ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: mensajes.length,
+                    itemBuilder: (context, index) {
+                      final mensaje = mensajes[mensajes.length - 1 - index];
+                      if (mensaje.tipo == TipoMensaje.sistema) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Center(
+                            child: Text(
+                              mensaje.texto,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontStyle: FontStyle.italic),
+                            ),
+                          ),
+                        );
+                      }
+                      final esMio = mensaje.emisorId == miUid;
+                      final colorScheme = Theme.of(context).colorScheme;
+                      return Align(
+                        alignment: esMio
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: esMio
+                                ? colorScheme.primary
+                                : colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(18),
+                              topRight: const Radius.circular(18),
+                              bottomLeft: Radius.circular(esMio ? 18 : 4),
+                              bottomRight: Radius.circular(esMio ? 4 : 18),
+                            ),
+                          ),
                           child: Text(
                             mensaje.texto,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(fontStyle: FontStyle.italic),
+                            style: TextStyle(
+                              color: esMio
+                                  ? colorScheme.onPrimary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       );
-                    }
-                    final esMio = mensaje.emisorId == miUid;
-                    final colorScheme = Theme.of(context).colorScheme;
-                    return Align(
-                      alignment: esMio
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.75,
-                        ),
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: esMio
-                              ? colorScheme.primary
-                              : colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(18),
-                            topRight: const Radius.circular(18),
-                            bottomLeft: Radius.circular(esMio ? 18 : 4),
-                            bottomRight: Radius.circular(esMio ? 4 : 18),
-                          ),
-                        ),
-                        child: Text(
-                          mensaje.texto,
-                          style: TextStyle(
-                            color: esMio
-                                ? colorScheme.onPrimary
-                                : colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _mensajeController,
-                      minLines: 1,
-                      maxLines: 4,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: InputDecoration(
-                        hintText: 'Escribí un mensaje...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      onSubmitted: (_) => _enviar(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    style: IconButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                    icon: const Icon(Icons.send_rounded),
-                    onPressed: _enviar,
-                  ),
-                ],
+                    },
+                  );
+                },
               ),
             ),
-          ),
-        ],
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _mensajeController,
+                        minLines: 1,
+                        maxLines: 4,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(
+                          hintText: 'Escribí un mensaje...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onSubmitted: (_) => _enviar(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      style: IconButton.styleFrom(
+                        foregroundColor: Theme.of(context)
+                            .colorScheme
+                            .onPrimary,
+                      ),
+                      icon: const Icon(Icons.send_rounded),
+                      onPressed: _enviar,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1003,10 +1026,7 @@ class _StepperTrato extends StatelessWidget {
 /// chico en el AppBar — mucho más difícil de pasar por alto para la
 /// vendedora, que es quien lo puede usar.
 class _BannerCerrarAcuerdo extends StatelessWidget {
-  const _BannerCerrarAcuerdo({
-    required this.cerrando,
-    required this.onCerrar,
-  });
+  const _BannerCerrarAcuerdo({required this.cerrando, required this.onCerrar});
 
   final bool cerrando;
   final VoidCallback onCerrar;
@@ -1228,7 +1248,7 @@ class _BannerEsperandoPago extends StatelessWidget {
         'El pago fue rechazado — la compradora puede intentar de nuevo.',
       _ =>
         'Esperando que la compradora elija pagar con Mercado Pago o '
-        'coordinar directo por WhatsApp.',
+            'coordinar directo por WhatsApp.',
     };
 
     return Container(
@@ -1237,7 +1257,10 @@ class _BannerEsperandoPago extends StatelessWidget {
       color: colorScheme.surfaceContainerHigh,
       child: Row(
         children: [
-          Icon(Icons.hourglass_top_rounded, color: colorScheme.onSurfaceVariant),
+          Icon(
+            Icons.hourglass_top_rounded,
+            color: colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1410,11 +1433,16 @@ class _BannerWhatsapp extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.chat_bubble_outline_rounded, color: colorScheme.primary),
+              Icon(
+                Icons.chat_bubble_outline_rounded,
+                color: colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Text(
                 'WhatsApp',
-                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
@@ -1493,7 +1521,9 @@ class _BannerCalificar extends StatelessWidget {
           Expanded(
             child: Text(
               '¿Cómo te fue con este trato?',
-              style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           FilledButton.tonal(
