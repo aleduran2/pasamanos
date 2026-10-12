@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/kyc.dart';
 import '../../../core/utils/telefono.dart';
+import '../../../core/widgets/campo_password.dart';
 import '../../../core/widgets/dialogo_botones.dart';
 import '../../auth/presentation/auth_error_messages.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -179,9 +180,8 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
           .read(userProfileRepositoryProvider)
           .actualizarTelefono(uid: usuario.uid, telefono: telefono);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('WhatsApp guardado.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('WhatsApp guardado.')));
       }
     } catch (error) {
       if (mounted) {
@@ -203,9 +203,8 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
       await ref.read(authRepositoryProvider).actualizarNombre(nombre);
       if (mounted) {
         setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nombre actualizado.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Nombre actualizado.')));
       }
     } catch (error) {
       if (mounted) {
@@ -282,20 +281,14 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              CampoPassword(
                 controller: actualController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Contraseña actual',
-                ),
+                labelText: 'Contraseña actual',
               ),
               const SizedBox(height: 12),
-              TextField(
+              CampoPassword(
                 controller: nuevaController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Contraseña nueva',
-                ),
+                labelText: 'Contraseña nueva',
               ),
               if (error != null) ...[
                 const SizedBox(height: 12),
@@ -325,8 +318,7 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                       final nueva = nuevaController.text;
                       if (nueva.length < 6) {
                         setDialogState(
-                          () => error =
-                              'La contraseña nueva debe tener al menos 6 caracteres.',
+                          () => error = 'La contraseña nueva debe tener al menos 6 caracteres.',
                         );
                         return;
                       }
@@ -384,7 +376,9 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error.message ?? 'No se pudo iniciar la verificación.'),
+            content: Text(
+              error.message ?? 'No se pudo iniciar la verificación.',
+            ),
           ),
         );
       }
@@ -410,9 +404,7 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
         redirectUri == null ||
         redirectUri.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Falta configurar Mercado Pago (.env).'),
-        ),
+        const SnackBar(content: Text('Falta configurar Mercado Pago (.env).')),
       );
       return;
     }
@@ -519,9 +511,8 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
             const SizedBox(height: 4),
             Text(
               usuario.email,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: colorScheme.onSurfaceVariant),
             ),
             if (ref.read(authRepositoryProvider).tieneContrasena) ...[
               const SizedBox(height: 12),
@@ -552,9 +543,8 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                     const SizedBox(width: 8),
                     Text(
                       'Mi WhatsApp',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
@@ -562,9 +552,8 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                 Text(
                   'Se comparte solo cuando vos elegís hacerlo, dentro de un '
                   'chat con un trato cerrado.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
                 if (_cargando)
@@ -599,7 +588,9 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.check_rounded),
                       ),
@@ -625,9 +616,8 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                     const SizedBox(width: 8),
                     Text(
                       'Mercado Pago',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
@@ -638,9 +628,8 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                   'se queda con una comisión del 5%, el resto va directo a '
                   'tu cuenta). No hace falta si todos tus tratos son '
                   '"Trato directo".',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
                 if (_cargando)
@@ -653,7 +642,10 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                 else if (_conectada)
                   Row(
                     children: [
-                      Icon(Icons.check_circle_rounded, color: colorScheme.primary),
+                      Icon(
+                        Icons.check_circle_rounded,
+                        color: colorScheme.primary,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Cuenta conectada',
@@ -695,13 +687,15 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
               children: [
                 Row(
                   children: [
-                    Icon(Icons.verified_user_outlined, color: colorScheme.primary),
+                    Icon(
+                      Icons.verified_user_outlined,
+                      color: colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Verificación de identidad',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
@@ -713,9 +707,8 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                   'contacto — es una medida de seguridad para todas las '
                   'familias de la comunidad. En "Trato directo" no hace '
                   'falta verificarse.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
                 if (_cargando)

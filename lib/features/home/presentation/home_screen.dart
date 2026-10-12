@@ -30,7 +30,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  late Future<List<Publicacion>> _futuro;
+  List<Publicacion> _publicaciones = [];
+  bool _cargandoPublicaciones = true;
+  bool _errorPublicaciones = false;
 
   /// Filtro de "Mis publicaciones" activado al tocar la tarjeta "Activas".
   bool _soloActivas = false;
@@ -46,7 +48,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _futuro = _cargarMisPublicaciones();
+    _cargarMisPublicaciones();
     _registrarNotificaciones();
     _cargarEstadoOnboarding();
   }
@@ -89,7 +91,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     });
     try {
-      await ref.read(userProfileRepositoryProvider).ocultarOnboarding(usuario.uid);
+      await ref
+          .read(userProfileRepositoryProvider)
+          .ocultarOnboarding(usuario.uid);
     } catch (error, stackTrace) {
       if (kDebugMode) {
         debugPrint('HomeScreen._ocultarOnboarding error: $error\n$stackTrace');
@@ -103,10 +107,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.read(fcmTokenServiceProvider).registrarToken(usuario.uid);
   }
 
-  Future<List<Publicacion>> _cargarMisPublicaciones() {
+  // Estado propio (no un Future de un solo uso) justamente para poder
+  // ofrecer "pull to refresh": un RefreshIndicator necesita volver a pedir
+  // los datos sin reemplazar toda la pantalla por un spinner mientras
+  // tanto — con un FutureBuilder, cambiar el Future de vuelta a "waiting"
+  // hace parpadear toda la lista existente en cada refresco.
+  Future<void> _cargarMisPublicaciones() async {
     final usuario = ref.read(authRepositoryProvider).currentUser;
-    if (usuario == null) return Future.value(const []);
-    return ref.read(publicacionRepositoryProvider).listarPorVendedor(usuario.uid);
+    if (usuario == null) {
+      if (mounted) {
+        setState(() {
+          _publicaciones = [];
+          _cargandoPublicaciones = false;
+          _errorPublicaciones = false;
+        });
+      }
+      return;
+    }
+    try {
+      final lista = await ref
+          .read(publicacionRepositoryProvider)
+          .listarPorVendedor(usuario.uid);
+      if (mounted) {
+        setState(() {
+          _publicaciones = lista;
+          _cargandoPublicaciones = false;
+          _errorPublicaciones = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _cargandoPublicaciones = false;
+          _errorPublicaciones = true;
+        });
+      }
+    }
   }
 
   Future<void> _irAPublicar() async {
@@ -117,7 +153,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // Se agrega directo a la lista ya cargada en vez de volver a pedirle a
     // Firestore: así se ve al toque, sin esperar un segundo viaje de red.
     setState(() {
-      _futuro = _futuro.then((lista) => [nuevaPublicacion, ...lista]);
+      _publicaciones = [nuevaPublicacion, ..._publicaciones];
     });
   }
 
@@ -126,14 +162,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // pantalla que pueda haber tocado eso, se refresca la lista — si no,
   // "Mis publicaciones" queda mostrando datos viejos hasta reabrir la app.
   Future<void> _irAConversaciones() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ConversacionesScreen()));
-    if (mounted) {
-      setState(() {
-        _futuro = _cargarMisPublicaciones();
-      });
-    }
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const ConversacionesScreen()));
+    if (mounted) _cargarMisPublicaciones();
   }
 
   Future<void> _verPublicacion(Publicacion publicacion) async {
@@ -142,11 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         builder: (_) => PublicacionDetailScreen(publicacion: publicacion),
       ),
     );
-    if (mounted) {
-      setState(() {
-        _futuro = _cargarMisPublicaciones();
-      });
-    }
+    if (mounted) _cargarMisPublicaciones();
   }
 
   String get _tituloListaPublicaciones {
@@ -159,9 +186,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _irAPerfil() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const PerfilScreen()));
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const PerfilScreen()));
     // El nombre/foto pueden haber cambiado en "Mi perfil" — refresca para
     // que el encabezado de acá no se quede mostrando datos viejos. También
     // puede haber verificado su identidad o conectado Mercado Pago, así que
@@ -216,19 +242,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Publicar producto'),
       ),
-      body: FutureBuilder<List<Publicacion>>(
-        future: _futuro,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
+      body: Builder(
+        builder: (context) {
+          if (_cargandoPublicaciones) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
+          if (_errorPublicaciones) {
             return const EmptyState(
               icon: Icons.error_outline_rounded,
               mensaje: 'No se pudieron cargar tus publicaciones.',
             );
           }
-          final publicaciones = snapshot.data ?? [];
+          final publicaciones = _publicaciones;
           final perfil = _perfil;
           final mostrarOnboarding =
               perfil != null &&
@@ -251,179 +276,191 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             publicacionesAMostrar.sort((a, b) => b.vistas.compareTo(a.vistas));
           }
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-            children: [
-              _BarraDeBusqueda(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const BusquedaScreen()),
-                ),
-              ),
-              const SizedBox(height: 18),
-              if (mostrarOnboarding) ...[
-                _TarjetaOnboarding(
-                  identidadVerificada:
-                      perfil.estadoVerificacion == EstadoVerificacion.verificado,
-                  mpConectada: _mpConectada,
-                  onIrAPerfil: _irAPerfil,
-                  onCerrar: _ocultarOnboarding,
+          return RefreshIndicator(
+            onRefresh: _cargarMisPublicaciones,
+            child: ListView(
+              // Sin esto, con pocas publicaciones (lista más corta que la
+              // pantalla) el gesto de "pull to refresh" no se reconoce: la
+              // physics por defecto solo lo habilita cuando hay contenido
+              // de sobra para hacer scroll.
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              children: [
+                _BarraDeBusqueda(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const BusquedaScreen()),
+                  ),
                 ),
                 const SizedBox(height: 18),
-              ],
-              Row(
-                children: [
-                  Expanded(
-                    child: _TarjetaAccion(
-                      icono: Icons.favorite_rounded,
-                      etiqueta: 'Favoritos',
-                      color: colorScheme.primaryContainer,
-                      colorTexto: colorScheme.onPrimaryContainer,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const FavoritosScreen()),
-                      ),
-                    ),
+                if (mostrarOnboarding) ...[
+                  _TarjetaOnboarding(
+                    identidadVerificada:
+                        perfil.estadoVerificacion ==
+                        EstadoVerificacion.verificado,
+                    mpConectada: _mpConectada,
+                    onIrAPerfil: _irAPerfil,
+                    onCerrar: _ocultarOnboarding,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: usuario == null
-                        ? _TarjetaAccion(
-                            icono: Icons.chat_bubble_rounded,
-                            etiqueta: 'Mensajes',
-                            color: colorScheme.secondaryContainer,
-                            colorTexto: colorScheme.onSecondaryContainer,
-                            onTap: _irAConversaciones,
-                          )
-                        : StreamBuilder<List<Conversacion>>(
-                            stream: ref
-                                .read(chatRepositoryProvider)
-                                .misConversaciones(usuario.uid),
-                            builder: (context, snapshot) {
-                              final sinLeer = (snapshot.data ?? const [])
-                                  .where((c) => c.noLeidoPor(usuario.uid))
-                                  .length;
-                              return _TarjetaAccion(
-                                icono: Icons.chat_bubble_rounded,
-                                etiqueta: 'Mensajes',
-                                color: colorScheme.secondaryContainer,
-                                colorTexto: colorScheme.onSecondaryContainer,
-                                onTap: _irAConversaciones,
-                                badge: sinLeer,
-                              );
-                            },
-                          ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _TarjetaAccion(
-                      icono: Icons.notifications_active_rounded,
-                      etiqueta: 'Alertas',
-                      color: colorScheme.primaryContainer,
-                      colorTexto: colorScheme.onPrimaryContainer,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const AlertasScreen()),
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 18),
                 ],
-              ),
-              if (activas > 0 || vistasTotales > 0) ...[
-                const SizedBox(height: 10),
                 Row(
                   children: [
-                    if (activas > 0)
-                      Expanded(
-                        child: _TarjetaAccion(
-                          icono: Icons.inventory_2_rounded,
-                          etiqueta: 'Activas',
-                          valor: '$activas',
-                          color: colorScheme.primaryContainer,
-                          colorTexto: colorScheme.onPrimaryContainer,
-                          seleccionado: _soloActivas,
-                          onTap: () =>
-                              setState(() => _soloActivas = !_soloActivas),
-                        ),
-                      ),
-                    if (activas > 0 && vistasTotales > 0)
-                      const SizedBox(width: 10),
-                    if (vistasTotales > 0)
-                      Expanded(
-                        child: _TarjetaAccion(
-                          icono: Icons.visibility_rounded,
-                          etiqueta: 'Vistas totales',
-                          valor: '$vistasTotales',
-                          color: colorScheme.secondaryContainer,
-                          colorTexto: colorScheme.onSecondaryContainer,
-                          seleccionado: _ordenarPorVistas,
-                          onTap: () => setState(
-                            () => _ordenarPorVistas = !_ordenarPorVistas,
+                    Expanded(
+                      child: _TarjetaAccion(
+                        icono: Icons.favorite_rounded,
+                        etiqueta: 'Favoritos',
+                        color: colorScheme.primaryContainer,
+                        colorTexto: colorScheme.onPrimaryContainer,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const FavoritosScreen(),
                           ),
                         ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: usuario == null
+                          ? _TarjetaAccion(
+                              icono: Icons.chat_bubble_rounded,
+                              etiqueta: 'Mensajes',
+                              color: colorScheme.secondaryContainer,
+                              colorTexto: colorScheme.onSecondaryContainer,
+                              onTap: _irAConversaciones,
+                            )
+                          : StreamBuilder<List<Conversacion>>(
+                              stream: ref
+                                  .read(chatRepositoryProvider)
+                                  .misConversaciones(usuario.uid),
+                              builder: (context, snapshot) {
+                                final sinLeer = (snapshot.data ?? const [])
+                                    .where((c) => c.noLeidoPor(usuario.uid))
+                                    .length;
+                                return _TarjetaAccion(
+                                  icono: Icons.chat_bubble_rounded,
+                                  etiqueta: 'Mensajes',
+                                  color: colorScheme.secondaryContainer,
+                                  colorTexto: colorScheme.onSecondaryContainer,
+                                  onTap: _irAConversaciones,
+                                  badge: sinLeer,
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _TarjetaAccion(
+                        icono: Icons.notifications_active_rounded,
+                        etiqueta: 'Alertas',
+                        color: colorScheme.primaryContainer,
+                        colorTexto: colorScheme.onPrimaryContainer,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AlertasScreen(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (activas > 0 || vistasTotales > 0) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      if (activas > 0)
+                        Expanded(
+                          child: _TarjetaAccion(
+                            icono: Icons.inventory_2_rounded,
+                            etiqueta: 'Activas',
+                            valor: '$activas',
+                            color: colorScheme.primaryContainer,
+                            colorTexto: colorScheme.onPrimaryContainer,
+                            seleccionado: _soloActivas,
+                            onTap: () =>
+                                setState(() => _soloActivas = !_soloActivas),
+                          ),
+                        ),
+                      if (activas > 0 && vistasTotales > 0)
+                        const SizedBox(width: 10),
+                      if (vistasTotales > 0)
+                        Expanded(
+                          child: _TarjetaAccion(
+                            icono: Icons.visibility_rounded,
+                            etiqueta: 'Vistas totales',
+                            valor: '$vistasTotales',
+                            color: colorScheme.secondaryContainer,
+                            colorTexto: colorScheme.onSecondaryContainer,
+                            seleccionado: _ordenarPorVistas,
+                            onTap: () => setState(
+                              () => _ordenarPorVistas = !_ordenarPorVistas,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _tituloListaPublicaciones,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    if (_soloActivas || _ordenarPorVistas)
+                      TextButton(
+                        onPressed: () => setState(() {
+                          _soloActivas = false;
+                          _ordenarPorVistas = false;
+                        }),
+                        child: const Text('Ver todas'),
                       ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                if (publicaciones.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Column(
+                      children: [
+                        const EmptyState(
+                          icon: Icons.inventory_2_outlined,
+                          mensaje: 'Todavía no publicaste nada.',
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed: _irAPublicar,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Publicar mi primer producto'),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (publicacionesAMostrar.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: EmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      mensaje: 'No tenés publicaciones activas ahora mismo.',
+                    ),
+                  )
+                else
+                  ...publicacionesAMostrar.map(
+                    (publicacion) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: PublicacionListTile(
+                        publicacion: publicacion,
+                        mostrarVistas: true,
+                        onTap: () => _verPublicacion(publicacion),
+                      ),
+                    ),
+                  ),
               ],
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _tituloListaPublicaciones,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  if (_soloActivas || _ordenarPorVistas)
-                    TextButton(
-                      onPressed: () => setState(() {
-                        _soloActivas = false;
-                        _ordenarPorVistas = false;
-                      }),
-                      child: const Text('Ver todas'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (publicaciones.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Column(
-                    children: [
-                      const EmptyState(
-                        icon: Icons.inventory_2_outlined,
-                        mensaje: 'Todavía no publicaste nada.',
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: _irAPublicar,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Publicar mi primer producto'),
-                      ),
-                    ],
-                  ),
-                )
-              else if (publicacionesAMostrar.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: EmptyState(
-                    icon: Icons.inventory_2_outlined,
-                    mensaje: 'No tenés publicaciones activas ahora mismo.',
-                  ),
-                )
-              else
-                ...publicacionesAMostrar.map(
-                  (publicacion) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: PublicacionListTile(
-                      publicacion: publicacion,
-                      mostrarVistas: true,
-                      onTap: () => _verPublicacion(publicacion),
-                    ),
-                  ),
-                ),
-            ],
+            ),
           );
         },
       ),
@@ -512,9 +549,8 @@ class _BarraDeBusqueda extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 'Buscar ropa, uniformes, juguetes...',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: Theme.of(context).textTheme.bodyLarge
+                    ?.copyWith(color: colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -570,20 +606,16 @@ class _TarjetaAccion extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             valor!,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: colorTexto,
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(color: colorTexto, fontWeight: FontWeight.w900),
           ),
         ],
         const SizedBox(height: 6),
         Text(
           etiqueta,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: colorTexto,
-            fontWeight: FontWeight.w700,
-          ),
+          style: Theme.of(context).textTheme.labelMedium
+              ?.copyWith(color: colorTexto, fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -603,9 +635,7 @@ class _TarjetaAccion extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: esSoloEstadistica
               ? Border.all(color: colorTexto.withValues(alpha: 0.3))
-              : (seleccionado
-                    ? Border.all(color: colorTexto, width: 2)
-                    : null),
+              : (seleccionado ? Border.all(color: colorTexto, width: 2) : null),
         ),
         child: esSoloEstadistica
             ? Padding(

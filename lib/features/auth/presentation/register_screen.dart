@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/widgets/campo_password.dart';
 import '../providers/auth_providers.dart';
 import 'auth_error_messages.dart';
 
@@ -32,18 +33,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _cargando = true);
     try {
-      await ref.read(authRepositoryProvider).registerWithEmail(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        nombre: _nombreController.text.trim(),
-      );
+      await ref
+          .read(authRepositoryProvider)
+          .registerWithEmail(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+            nombre: _nombreController.text.trim(),
+          );
       TextInput.finishAutofillContext();
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(mensajeErrorAuth(error))));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(mensajeErrorAuth(error))));
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -69,9 +71,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               children: [
                 Text(
                   'Creá tu cuenta',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(context).textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -106,11 +107,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                CampoPassword(
                   controller: _passwordController,
-                  obscureText: true,
+                  labelText: 'Contraseña',
                   autofillHints: const [AutofillHints.newPassword],
-                  decoration: const InputDecoration(labelText: 'Contraseña'),
                   validator: (valor) {
                     if (valor == null || valor.length < 6) {
                       return 'La contraseña debe tener al menos 6 caracteres';

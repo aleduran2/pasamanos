@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/campo_password.dart';
+import '../../../core/widgets/logo_pasamanos.dart';
 import '../providers/auth_providers.dart';
 import 'auth_error_messages.dart';
 import 'register_screen.dart';
@@ -79,20 +81,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: ListView(
                 children: [
                   const SizedBox(height: 24),
-                  Container(
-                    width: 72,
-                    height: 72,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Icon(
-                      Icons.diversity_3_rounded,
-                      size: 36,
-                      color: colorScheme.onPrimaryContainer,
-                    ),
-                  ),
+                  const LogoPasamanos(),
                   const SizedBox(height: 20),
                   Text(
                     'Pasamanos',
@@ -119,11 +108,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
+                  CampoPassword(
                     controller: _passwordController,
-                    obscureText: true,
+                    labelText: 'Contraseña',
                     autofillHints: const [AutofillHints.password],
-                    decoration: const InputDecoration(labelText: 'Contraseña'),
                     validator: (valor) {
                       if (valor == null || valor.length < 6) {
                         return 'La contraseña debe tener al menos 6 caracteres';

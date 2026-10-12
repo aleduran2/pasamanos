@@ -21,6 +21,12 @@ class AppTheme {
 
   static const Color _semilla = Color(0xFF2557D6);
 
+  /// Azul y coral de marca, expuestos para reusar fuera del `ColorScheme`
+  /// (p. ej. el logo de [LogoPasamanos], que no depende del tema porque
+  /// tiene que verse igual en cualquier pantalla donde aparezca).
+  static const Color azulMarca = _primario;
+  static const Color coralMarca = _secundario;
+
   static const Color _primario = Color(0xFF2557D6);
   static const Color _onPrimario = Color(0xFFFFFFFF);
   static const Color _primarioContainer = Color(0xFFDCE6FF);
@@ -31,9 +37,8 @@ class AppTheme {
   static const Color _secundarioContainer = Color(0xFFFFDAD2);
   static const Color _onSecundarioContainer = Color(0xFF723425);
 
-  static ThemeData get light => _construir(
-    _conMarcaPropia(ColorScheme.fromSeed(seedColor: _semilla)),
-  );
+  static ThemeData get light =>
+      _construir(_conMarcaPropia(ColorScheme.fromSeed(seedColor: _semilla)));
 
   static ThemeData get dark => _construir(
     _conMarcaPropia(
@@ -152,9 +157,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         color: colorScheme.surfaceContainerHigh,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         margin: EdgeInsets.zero,
       ),
       chipTheme: ChipThemeData(
@@ -167,9 +170,7 @@ class AppTheme {
         // del chip, y el texto puede terminar mezclándose con el fondo.
         // Cada chip de la app fija su propio color de texto a mano.
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: colorScheme.primary,
@@ -178,15 +179,11 @@ class AppTheme {
           fontSize: 15,
           fontWeight: FontWeight.w800,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       listTileTheme: ListTileThemeData(
         iconColor: colorScheme.onSurfaceVariant,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       dividerTheme: DividerThemeData(
         color: colorScheme.outlineVariant,
@@ -194,9 +191,7 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
