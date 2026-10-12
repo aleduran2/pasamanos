@@ -13,6 +13,10 @@ import 'package:pasamanos/features/chat/providers/chat_providers.dart';
 import 'package:pasamanos/features/home/presentation/home_screen.dart';
 import 'package:pasamanos/features/notificaciones/data/fcm_token_service.dart';
 import 'package:pasamanos/features/notificaciones/providers/notificaciones_providers.dart';
+import 'package:pasamanos/features/perfil/data/mercadopago_repository.dart';
+import 'package:pasamanos/features/perfil/data/user_profile_repository.dart';
+import 'package:pasamanos/features/perfil/models/user_profile.dart';
+import 'package:pasamanos/features/perfil/providers/perfil_providers.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -22,11 +26,17 @@ class _MockFcmTokenService extends Mock implements FcmTokenService {}
 
 class _MockChatRepository extends Mock implements ChatRepository {}
 
+class _MockUserProfileRepository extends Mock implements UserProfileRepository {}
+
+class _MockMercadoPagoRepository extends Mock implements MercadoPagoRepository {}
+
 void main() {
   late _MockAuthRepository mockAuthRepository;
   late _MockPublicacionRepository mockPublicacionRepository;
   late _MockFcmTokenService mockFcmTokenService;
   late _MockChatRepository mockChatRepository;
+  late _MockUserProfileRepository mockUserProfileRepository;
+  late _MockMercadoPagoRepository mockMercadoPagoRepository;
 
   const usuario = AppUser(uid: 'uid-1', email: 'vendedora@example.com');
 
@@ -35,6 +45,8 @@ void main() {
     mockPublicacionRepository = _MockPublicacionRepository();
     mockFcmTokenService = _MockFcmTokenService();
     mockChatRepository = _MockChatRepository();
+    mockUserProfileRepository = _MockUserProfileRepository();
+    mockMercadoPagoRepository = _MockMercadoPagoRepository();
     when(() => mockAuthRepository.currentUser).thenReturn(usuario);
     when(
       () => mockFcmTokenService.registrarToken(any()),
@@ -42,6 +54,15 @@ void main() {
     when(
       () => mockChatRepository.misConversaciones('uid-1'),
     ).thenAnswer((_) => Stream.value(const []));
+    // Por defecto, sin perfil cargado: la tarjeta de onboarding necesita un
+    // perfil no nulo para mostrarse, así que esto la mantiene oculta salvo
+    // que un test puntual la pise.
+    when(
+      () => mockUserProfileRepository.obtenerPorId('uid-1'),
+    ).thenAnswer((_) async => null);
+    when(
+      () => mockMercadoPagoRepository.estaConectada('uid-1'),
+    ).thenAnswer((_) async => false);
   });
 
   Future<void> pumpHomeScreen(WidgetTester tester) async {
@@ -54,6 +75,12 @@ void main() {
           ),
           fcmTokenServiceProvider.overrideWithValue(mockFcmTokenService),
           chatRepositoryProvider.overrideWithValue(mockChatRepository),
+          userProfileRepositoryProvider.overrideWithValue(
+            mockUserProfileRepository,
+          ),
+          mercadoPagoRepositoryProvider.overrideWithValue(
+            mockMercadoPagoRepository,
+          ),
         ],
         child: const MaterialApp(home: HomeScreen()),
       ),
@@ -207,5 +234,89 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Mis publicaciones'), findsOneWidget);
+  });
+
+  testWidgets(
+    'muestra la tarjeta de onboarding si falta verificar o conectar MP',
+    (tester) async {
+      when(
+        () => mockUserProfileRepository.obtenerPorId('uid-1'),
+      ).thenAnswer(
+        (_) async => const UserProfile(
+          uid: 'uid-1',
+          nombre: 'Vendedora',
+          email: 'vendedora@example.com',
+        ),
+      );
+      when(
+        () => mockPublicacionRepository.listarPorVendedor('uid-1'),
+      ).thenAnswer((_) async => []);
+
+      await pumpHomeScreen(tester);
+
+      expect(find.text('Completá tu cuenta'), findsOneWidget);
+      expect(
+        find.text('Verificá tu identidad para compras protegidas'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Conectá Mercado Pago para cobrar tus ventas'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('no muestra la tarjeta de onboarding si ya está todo hecho', (
+    tester,
+  ) async {
+    when(
+      () => mockUserProfileRepository.obtenerPorId('uid-1'),
+    ).thenAnswer(
+      (_) async => const UserProfile(
+        uid: 'uid-1',
+        nombre: 'Vendedora',
+        email: 'vendedora@example.com',
+        estadoVerificacion: EstadoVerificacion.verificado,
+      ),
+    );
+    when(
+      () => mockMercadoPagoRepository.estaConectada('uid-1'),
+    ).thenAnswer((_) async => true);
+    when(
+      () => mockPublicacionRepository.listarPorVendedor('uid-1'),
+    ).thenAnswer((_) async => []);
+
+    await pumpHomeScreen(tester);
+
+    expect(find.text('Completá tu cuenta'), findsNothing);
+  });
+
+  testWidgets('cerrar la tarjeta de onboarding la oculta y lo guarda', (
+    tester,
+  ) async {
+    when(
+      () => mockUserProfileRepository.obtenerPorId('uid-1'),
+    ).thenAnswer(
+      (_) async => const UserProfile(
+        uid: 'uid-1',
+        nombre: 'Vendedora',
+        email: 'vendedora@example.com',
+      ),
+    );
+    when(
+      () => mockUserProfileRepository.ocultarOnboarding('uid-1'),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockPublicacionRepository.listarPorVendedor('uid-1'),
+    ).thenAnswer((_) async => []);
+
+    await pumpHomeScreen(tester);
+    expect(find.text('Completá tu cuenta'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('No volver a mostrar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Completá tu cuenta'), findsNothing);
+    verify(() => mockUserProfileRepository.ocultarOnboarding('uid-1')).called(1);
   });
 }

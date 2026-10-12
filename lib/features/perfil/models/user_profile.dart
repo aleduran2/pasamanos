@@ -36,6 +36,7 @@ class UserProfile {
     this.fechaRegistro,
     this.kycSessionId,
     this.notificacionesActivas = true,
+    this.onboardingOculto = false,
   });
 
   final String uid;
@@ -64,6 +65,12 @@ class UserProfile {
   /// [[fcm_token_service]]), no tocando el permiso en sí.
   final bool notificacionesActivas;
 
+  /// Si la usuaria cerró la tarjeta de "completá tu cuenta" del Home
+  /// (verificación, Mercado Pago). Una vez cerrada no vuelve a aparecer,
+  /// aunque le sigan faltando esos pasos — insistir después de que la
+  /// descartó a propósito sería más molesto que útil.
+  final bool onboardingOculto;
+
   Map<String, dynamic> toFirestore() {
     return {
       'nombre': nombre,
@@ -74,6 +81,7 @@ class UserProfile {
       'calificacionPromedio': calificacionPromedio,
       'cantidadTransacciones': cantidadTransacciones,
       'notificacionesActivas': notificacionesActivas,
+      'onboardingOculto': onboardingOculto,
     };
   }
 
@@ -96,6 +104,7 @@ class UserProfile {
           : null,
       kycSessionId: data['kycSessionId'] as String?,
       notificacionesActivas: data['notificacionesActivas'] as bool? ?? true,
+      onboardingOculto: data['onboardingOculto'] as bool? ?? false,
     );
   }
 }

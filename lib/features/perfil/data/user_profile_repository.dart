@@ -33,6 +33,9 @@ abstract class UserProfileRepository {
     required String uid,
     required bool activas,
   });
+
+  /// Oculta para siempre la tarjeta de "completá tu cuenta" del Home.
+  Future<void> ocultarOnboarding(String uid);
 }
 
 class FirestoreUserProfileRepository implements UserProfileRepository {
@@ -143,5 +146,10 @@ class FirestoreUserProfileRepository implements UserProfileRepository {
     required bool activas,
   }) async {
     await _usersRef.doc(uid).update({'notificacionesActivas': activas});
+  }
+
+  @override
+  Future<void> ocultarOnboarding(String uid) async {
+    await _usersRef.doc(uid).update({'onboardingOculto': true});
   }
 }

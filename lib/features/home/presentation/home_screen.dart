@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,7 +18,9 @@ import '../../chat/presentation/conversaciones_screen.dart';
 import '../../chat/providers/chat_providers.dart';
 import '../../favoritos/presentation/favoritos_screen.dart';
 import '../../notificaciones/providers/notificaciones_providers.dart';
+import '../../perfil/models/user_profile.dart';
 import '../../perfil/presentation/perfil_screen.dart';
+import '../../perfil/providers/perfil_providers.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -37,11 +40,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// solo explicar el número en un diálogo.
   bool _ordenarPorVistas = false;
 
+  UserProfile? _perfil;
+  bool _mpConectada = false;
+
   @override
   void initState() {
     super.initState();
     _futuro = _cargarMisPublicaciones();
     _registrarNotificaciones();
+    _cargarEstadoOnboarding();
+  }
+
+  Future<void> _cargarEstadoOnboarding() async {
+    final usuario = ref.read(authRepositoryProvider).currentUser;
+    if (usuario == null) return;
+    final resultados = await Future.wait([
+      ref.read(userProfileRepositoryProvider).obtenerPorId(usuario.uid),
+      ref.read(mercadoPagoRepositoryProvider).estaConectada(usuario.uid),
+    ]);
+    if (mounted) {
+      setState(() {
+        _perfil = resultados[0] as UserProfile?;
+        _mpConectada = resultados[1] as bool;
+      });
+    }
+  }
+
+  Future<void> _ocultarOnboarding() async {
+    final usuario = ref.read(authRepositoryProvider).currentUser;
+    if (usuario == null) return;
+    setState(() {
+      final perfil = _perfil;
+      if (perfil != null) {
+        _perfil = UserProfile(
+          uid: perfil.uid,
+          nombre: perfil.nombre,
+          email: perfil.email,
+          fotoUrl: perfil.fotoUrl,
+          telefono: perfil.telefono,
+          estadoVerificacion: perfil.estadoVerificacion,
+          calificacionPromedio: perfil.calificacionPromedio,
+          cantidadTransacciones: perfil.cantidadTransacciones,
+          fechaRegistro: perfil.fechaRegistro,
+          kycSessionId: perfil.kycSessionId,
+          notificacionesActivas: perfil.notificacionesActivas,
+          onboardingOculto: true,
+        );
+      }
+    });
+    try {
+      await ref.read(userProfileRepositoryProvider).ocultarOnboarding(usuario.uid);
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('HomeScreen._ocultarOnboarding error: $error\n$stackTrace');
+      }
+    }
   }
 
   void _registrarNotificaciones() {
@@ -110,8 +163,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context,
     ).push(MaterialPageRoute(builder: (_) => const PerfilScreen()));
     // El nombre/foto pueden haber cambiado en "Mi perfil" — refresca para
-    // que el encabezado de acá no se quede mostrando datos viejos.
+    // que el encabezado de acá no se quede mostrando datos viejos. También
+    // puede haber verificado su identidad o conectado Mercado Pago, así que
+    // se vuelve a cargar el estado de la tarjeta de onboarding.
     if (mounted) setState(() {});
+    _cargarEstadoOnboarding();
   }
 
   Future<void> _cerrarSesion() async {
@@ -173,6 +229,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             );
           }
           final publicaciones = snapshot.data ?? [];
+          final perfil = _perfil;
+          final mostrarOnboarding =
+              perfil != null &&
+              !perfil.onboardingOculto &&
+              (perfil.estadoVerificacion != EstadoVerificacion.verificado ||
+                  !_mpConectada);
           final vistasTotales = publicaciones.fold<int>(
             0,
             (suma, p) => suma + p.vistas,
@@ -198,6 +260,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 18),
+              if (mostrarOnboarding) ...[
+                _TarjetaOnboarding(
+                  identidadVerificada:
+                      perfil.estadoVerificacion == EstadoVerificacion.verificado,
+                  mpConectada: _mpConectada,
+                  onIrAPerfil: _irAPerfil,
+                  onCerrar: _ocultarOnboarding,
+                ),
+                const SizedBox(height: 18),
+              ],
               Row(
                 children: [
                   Expanded(
@@ -593,6 +665,125 @@ class _TarjetaAccion extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Tarjeta para usuarias nuevas con los dos pasos que no son obligatorios
+/// para usar la app pero sí para sacarle el jugo (verificar identidad,
+/// conectar Mercado Pago) — sin esto, nada en el Home avisaba que existían
+/// hasta que alguien entraba a "Mi perfil" por su cuenta. Desaparece sola
+/// cuando ambos pasos están completos, o si la usuaria la cierra a mano.
+class _TarjetaOnboarding extends StatelessWidget {
+  const _TarjetaOnboarding({
+    required this.identidadVerificada,
+    required this.mpConectada,
+    required this.onIrAPerfil,
+    required this.onCerrar,
+  });
+
+  final bool identidadVerificada;
+  final bool mpConectada;
+  final VoidCallback onIrAPerfil;
+  final VoidCallback onCerrar;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 14),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Completá tu cuenta',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: onCerrar,
+                tooltip: 'No volver a mostrar',
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  Icons.close_rounded,
+                  color: colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ],
+          ),
+          _FilaOnboarding(
+            hecho: identidadVerificada,
+            texto: 'Verificá tu identidad para compras protegidas',
+            onTap: onIrAPerfil,
+          ),
+          _FilaOnboarding(
+            hecho: mpConectada,
+            texto: 'Conectá Mercado Pago para cobrar tus ventas',
+            onTap: onIrAPerfil,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilaOnboarding extends StatelessWidget {
+  const _FilaOnboarding({
+    required this.hecho,
+    required this.texto,
+    required this.onTap,
+  });
+
+  final bool hecho;
+  final String texto;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: hecho ? null : onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(
+              hecho
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              size: 20,
+              color: colorScheme.onPrimaryContainer,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                texto,
+                style: TextStyle(
+                  color: colorScheme.onPrimaryContainer,
+                  decoration: hecho ? TextDecoration.lineThrough : null,
+                ),
+              ),
+            ),
+            if (!hecho)
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onPrimaryContainer,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
