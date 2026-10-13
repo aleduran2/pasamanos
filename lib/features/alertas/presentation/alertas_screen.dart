@@ -38,25 +38,39 @@ class _AlertasScreenState extends ConsumerState<AlertasScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: Categoria.values.map((valor) {
-                  final seleccionada = categoria == valor;
-                  final colorScheme = Theme.of(context).colorScheme;
-                  return ChoiceChip(
-                    label: Text(valor.etiqueta),
-                    labelStyle: TextStyle(
-                      color: seleccionada
-                          ? colorScheme.onPrimary
-                          : colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    selected: seleccionada,
-                    selectedColor: colorScheme.primary,
-                    onSelected: (_) => setDialogState(() {
-                      categoria = valor;
-                      talle = null;
-                    }),
-                  );
-                }).toList(),
+                // Una alerta es siempre "avisame cuando aparezca este
+                // TALLE" — no tiene sentido ofrecer categorías que no
+                // manejan talles (accesorios, juguetes, libros, bebé):
+                // antes se podían elegir igual y solo ahí aparecía un
+                // cartel pidiendo elegir otra, un paso de ida y vuelta
+                // innecesario.
+                children: Categoria.values
+                    .where((valor) => tallesParaCategoria(valor) != null)
+                    .map((valor) {
+                      final seleccionada = categoria == valor;
+                      final colorScheme = Theme.of(context).colorScheme;
+                      return ChoiceChip(
+                        label: Text(valor.etiqueta),
+                        labelStyle: TextStyle(
+                          color: seleccionada
+                              ? colorScheme.onPrimary
+                              : colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        selected: seleccionada,
+                        // Sin esto, Material agrega un tilde adentro del
+                        // chip seleccionado — con `selectedColor` oscuro
+                        // ese tilde queda casi invisible. El color de
+                        // fondo ya alcanza para marcar la selección.
+                        showCheckmark: false,
+                        selectedColor: colorScheme.primary,
+                        onSelected: (_) => setDialogState(() {
+                          categoria = valor;
+                          talle = null;
+                        }),
+                      );
+                    })
+                    .toList(),
               ),
               if (tallesParaCategoria(categoria) case final talles?) ...[
                 const SizedBox(height: 16),
@@ -68,12 +82,6 @@ class _AlertasScreenState extends ConsumerState<AlertasScreen> {
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                       .toList(),
                   onChanged: (valor) => setDialogState(() => talle = valor),
-                ),
-              ] else if (categoria != null) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Esta categoría no usa talles — elegí otra.',
-                  style: TextStyle(fontStyle: FontStyle.italic),
                 ),
               ],
             ],
