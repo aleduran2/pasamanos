@@ -28,6 +28,18 @@ void main() {
     mockPublicacionRepository = _MockPublicacionRepository();
     mockAuthRepository = _MockAuthRepository();
     when(() => mockAuthRepository.currentUser).thenReturn(null);
+    // Stub "comodín": la pantalla ahora busca sola al entrar (sin filtros),
+    // antes incluso de que un test registre su propio stub más específico.
+    when(
+      () => mockPublicacionRepository.buscarDisponibles(
+        etapaEdad: any(named: 'etapaEdad'),
+        categoria: any(named: 'categoria'),
+        colegio: any(named: 'colegio'),
+        barrio: any(named: 'barrio'),
+        talle: any(named: 'talle'),
+        colores: any(named: 'colores'),
+      ),
+    ).thenAnswer((_) async => []);
   });
 
   Future<void> pumpPantalla(WidgetTester tester) async {
@@ -51,20 +63,39 @@ void main() {
     );
   }
 
-  testWidgets('pide elegir una etapa antes de mostrar resultados', (
+  testWidgets('busca sola al entrar, sin elegir ningún filtro', (
     tester,
   ) async {
-    await pumpPantalla(tester);
-
-    expect(
-      find.textContaining('Elegí una etapa/edad'),
-      findsOneWidget,
-    );
-    verifyNever(
+    when(
       () => mockPublicacionRepository.buscarDisponibles(
-        etapaEdad: any(named: 'etapaEdad'),
+        etapaEdad: null,
+        categoria: any(named: 'categoria'),
+        colegio: any(named: 'colegio'),
+        barrio: any(named: 'barrio'),
+        talle: any(named: 'talle'),
+        colores: any(named: 'colores'),
       ),
+    ).thenAnswer(
+      (_) async => [
+        const Publicacion(
+          id: 'pub-1',
+          vendedorId: 'uid-1',
+          titulo: 'Producto recién llegado',
+          descripcion: 'Usado',
+          categoria: Categoria.uniformes,
+          etapaEdad: EtapaEdad.primaria,
+          precio: 5000,
+          fotos: FotosPublicacion(frente: 'https://example.com/frente.jpg'),
+        ),
+      ],
     );
+
+    await pumpPantalla(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Producto recién llegado'), findsOneWidget);
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.notifications_active_rounded), findsOneWidget);
   });
 
   testWidgets('al elegir una etapa busca y muestra resultados', (

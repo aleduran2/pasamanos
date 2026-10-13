@@ -2,44 +2,48 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/widgets/dialogo_botones.dart';
 import '../../../core/widgets/empty_state.dart';
-import '../../alertas/presentation/alertas_screen.dart';
 import '../../auth/models/app_user.dart';
 import '../../auth/providers/auth_providers.dart';
-import '../../busqueda/presentation/busqueda_screen.dart';
-import '../../catalogo/models/publicacion.dart';
-import '../../catalogo/presentation/publicacion_detail_screen.dart';
-import '../../catalogo/presentation/publicacion_list_tile.dart';
-import '../../catalogo/presentation/publicar_producto_screen.dart';
-import '../../catalogo/providers/catalogo_providers.dart';
-import '../../chat/models/conversacion.dart';
-import '../../chat/presentation/conversaciones_screen.dart';
-import '../../chat/providers/chat_providers.dart';
-import '../../favoritos/presentation/favoritos_screen.dart';
-import '../../notificaciones/providers/notificaciones_providers.dart';
+import '../models/publicacion.dart';
+import 'publicacion_detail_screen.dart';
+import 'publicacion_list_tile.dart';
+import 'publicar_producto_screen.dart';
+import '../providers/catalogo_providers.dart';
 import '../../perfil/models/user_profile.dart';
-import '../../perfil/presentation/perfil_screen.dart';
 import '../../perfil/providers/perfil_providers.dart';
 
-class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+/// Panel de la vendedora: sus publicaciones, estadísticas (activas, vistas) y
+/// la tarjeta de onboarding (confirmar email, verificar identidad, conectar
+/// Mercado Pago). Antes vivía adentro de HomeScreen junto con la búsqueda y
+/// los accesos a Favoritos/Mensajes/Alertas — se separó en su propia pestaña
+/// para que "Inicio" sea pura navegación de compra.
+class MisPublicacionesScreen extends ConsumerStatefulWidget {
+  const MisPublicacionesScreen({super.key, required this.onIrAPerfil});
+
+  /// La tarjeta de onboarding manda acá ("Verificá tu identidad", "Conectá
+  /// Mercado Pago") — como Perfil ahora es una pestaña del shell y no una
+  /// pantalla empujada con Navigator, quien arma el shell decide qué hacer
+  /// (cambiar de pestaña) en vez de que esta pantalla sepa nada de eso.
+  final VoidCallback onIrAPerfil;
 
   @override
-  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<MisPublicacionesScreen> createState() =>
+      MisPublicacionesScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class MisPublicacionesScreenState
+    extends ConsumerState<MisPublicacionesScreen> {
   List<Publicacion> _publicaciones = [];
   bool _cargandoPublicaciones = true;
   bool _errorPublicaciones = false;
 
-  /// Filtro de "Mis publicaciones" activado al tocar la tarjeta "Activas".
+  /// Filtro activado al tocar la tarjeta "Activas".
   bool _soloActivas = false;
 
-  /// Orden de "Mis publicaciones" activado al tocar la tarjeta "Vistas
-  /// totales" — mostrar qué publicación atrae más vistas es más útil que
-  /// solo explicar el número en un diálogo.
+  /// Orden activado al tocar la tarjeta "Vistas totales" — mostrar qué
+  /// publicación atrae más vistas es más útil que solo explicar el número
+  /// en un diálogo.
   bool _ordenarPorVistas = false;
 
   UserProfile? _perfil;
@@ -55,8 +59,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _cargarMisPublicaciones();
-    _registrarNotificaciones();
     _cargarEstadoOnboarding();
+  }
+
+  /// Público para que el shell lo llame cuando esta pestaña vuelve a quedar
+  /// visible (p. ej. al volver de "Mi perfil" después de verificar la
+  /// identidad o conectar Mercado Pago) — al usar IndexedStack entre
+  /// pestañas no hay ningún ciclo de vida de "reaparecí" que dispare esto
+  /// solo.
+  Future<void> recargarEstado() async {
+    await Future.wait([
+      _cargarMisPublicaciones(),
+      _cargarEstadoOnboarding(),
+    ]);
   }
 
   Future<void> _cargarEstadoOnboarding() async {
@@ -142,15 +157,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           .ocultarOnboarding(usuario.uid);
     } catch (error, stackTrace) {
       if (kDebugMode) {
-        debugPrint('HomeScreen._ocultarOnboarding error: $error\n$stackTrace');
+        debugPrint(
+          'MisPublicacionesScreen._ocultarOnboarding error: $error\n$stackTrace',
+        );
       }
     }
-  }
-
-  void _registrarNotificaciones() {
-    final usuario = ref.read(authRepositoryProvider).currentUser;
-    if (usuario == null) return;
-    ref.read(fcmTokenServiceProvider).registrarToken(usuario.uid);
   }
 
   // Estado propio (no un Future de un solo uso) justamente para poder
@@ -234,13 +245,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // El estado de una publicación puede cambiar en otra pantalla (p. ej.
   // "Marcar como vendido" desde el chat), así que al volver de cualquier
   // pantalla que pueda haber tocado eso, se refresca la lista — si no,
-  // "Mis publicaciones" queda mostrando datos viejos hasta reabrir la app.
-  Future<void> _irAConversaciones() async {
-    await Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const ConversacionesScreen()));
-    if (mounted) _cargarMisPublicaciones();
-  }
-
+  // esta lista queda mostrando datos viejos hasta reabrir la app.
   Future<void> _verPublicacion(Publicacion publicacion) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -259,58 +264,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return 'Mis publicaciones';
   }
 
-  Future<void> _irAPerfil() async {
-    await Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const PerfilScreen()));
-    // El nombre/foto pueden haber cambiado en "Mi perfil" — refresca para
-    // que el encabezado de acá no se quede mostrando datos viejos. También
-    // puede haber verificado su identidad o conectado Mercado Pago, así que
-    // se vuelve a cargar el estado de la tarjeta de onboarding.
-    if (mounted) setState(() {});
-    _cargarEstadoOnboarding();
-  }
-
-  Future<void> _cerrarSesion() async {
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cerrar sesión'),
-        content: const Text('¿Querés cerrar tu sesión en Pasamanos?'),
-        actions: [
-          DialogoBotones(
-            textoCancelar: 'Cancelar',
-            textoConfirmar: 'Cerrar sesión',
-            onCancelar: () => Navigator.of(context).pop(false),
-            onConfirmar: () => Navigator.of(context).pop(true),
-          ),
-        ],
-      ),
-    );
-    if (confirmado == true) {
-      await ref.read(authRepositoryProvider).signOut();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final usuario = ref.watch(authRepositoryProvider).currentUser;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pasamanos'),
-        actions: [
-          if (usuario != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _MenuPerfil(
-                usuario: usuario,
-                onPerfil: _irAPerfil,
-                onCerrarSesion: _cerrarSesion,
-              ),
-            ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Mis publicaciones')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _irAPublicar,
         icon: const Icon(Icons.add),
@@ -352,7 +311,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           }
 
           return RefreshIndicator(
-            onRefresh: _cargarMisPublicaciones,
+            onRefresh: recargarEstado,
             child: ListView(
               // Sin esto, con pocas publicaciones (lista más corta que la
               // pantalla) el gesto de "pull to refresh" no se reconoce: la
@@ -361,12 +320,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               children: [
-                _BarraDeBusqueda(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const BusquedaScreen()),
-                  ),
-                ),
-                const SizedBox(height: 18),
                 if (mostrarOnboarding) ...[
                   _TarjetaOnboarding(
                     emailVerificado: _emailVerificado,
@@ -375,73 +328,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         EstadoVerificacion.verificado,
                     mpConectada: _mpConectada,
                     onConfirmarEmail: _abrirDialogoConfirmarEmail,
-                    onIrAPerfil: _irAPerfil,
+                    onIrAPerfil: widget.onIrAPerfil,
                     onCerrar: _ocultarOnboarding,
                   ),
                   const SizedBox(height: 18),
                 ],
-                Row(
-                  children: [
-                    Expanded(
-                      child: _TarjetaAccion(
-                        icono: Icons.favorite_rounded,
-                        etiqueta: 'Favoritos',
-                        color: colorScheme.primaryContainer,
-                        colorTexto: colorScheme.onPrimaryContainer,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const FavoritosScreen(),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: usuario == null
-                          ? _TarjetaAccion(
-                              icono: Icons.chat_bubble_rounded,
-                              etiqueta: 'Mensajes',
-                              color: colorScheme.secondaryContainer,
-                              colorTexto: colorScheme.onSecondaryContainer,
-                              onTap: _irAConversaciones,
-                            )
-                          : StreamBuilder<List<Conversacion>>(
-                              stream: ref
-                                  .read(chatRepositoryProvider)
-                                  .misConversaciones(usuario.uid),
-                              builder: (context, snapshot) {
-                                final sinLeer = (snapshot.data ?? const [])
-                                    .where((c) => c.noLeidoPor(usuario.uid))
-                                    .length;
-                                return _TarjetaAccion(
-                                  icono: Icons.chat_bubble_rounded,
-                                  etiqueta: 'Mensajes',
-                                  color: colorScheme.secondaryContainer,
-                                  colorTexto: colorScheme.onSecondaryContainer,
-                                  onTap: _irAConversaciones,
-                                  badge: sinLeer,
-                                );
-                              },
-                            ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _TarjetaAccion(
-                        icono: Icons.notifications_active_rounded,
-                        etiqueta: 'Alertas',
-                        color: colorScheme.primaryContainer,
-                        colorTexto: colorScheme.onPrimaryContainer,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const AlertasScreen(),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
                 if (activas > 0 || vistasTotales > 0) ...[
-                  const SizedBox(height: 10),
                   Row(
                     children: [
                       if (activas > 0)
@@ -475,20 +367,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                     ],
                   ),
+                  const SizedBox(height: 24),
                 ],
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _tituloListaPublicaciones,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                // Sin filtro activo no hace falta repetir el título: el
+                // AppBar ya dice "Mis publicaciones" — esta fila solo
+                // aparece para aclarar qué filtro/orden está aplicado y
+                // ofrecer deshacerlo.
+                if (_soloActivas || _ordenarPorVistas) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _tituloListaPublicaciones,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
                       ),
-                    ),
-                    if (_soloActivas || _ordenarPorVistas)
                       TextButton(
                         onPressed: () => setState(() {
                           _soloActivas = false;
@@ -496,9 +392,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         }),
                         child: const Text('Ver todas'),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (publicaciones.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 24),
@@ -545,103 +442,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-/// Avatar en el AppBar con un menú desplegable — antes "Mi perfil" y
-/// "Cerrar sesión" eran dos íconos sueltos (uno de ellos, encima, sin
-/// ningún dato de la usuaria a la vista). Acá el propio avatar hace de
-/// disparador del menú, un patrón más habitual en apps con cuenta.
-class _MenuPerfil extends StatelessWidget {
-  const _MenuPerfil({
-    required this.usuario,
-    required this.onPerfil,
-    required this.onCerrarSesion,
-  });
-
-  final AppUser usuario;
-  final VoidCallback onPerfil;
-  final VoidCallback onCerrarSesion;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return PopupMenuButton<VoidCallback>(
-      tooltip: 'Mi cuenta',
-      onSelected: (accion) => accion(),
-      icon: CircleAvatar(
-        radius: 18,
-        backgroundColor: colorScheme.surfaceContainerHighest,
-        backgroundImage: usuario.fotoUrl != null
-            ? NetworkImage(usuario.fotoUrl!)
-            : null,
-        child: usuario.fotoUrl == null
-            ? Icon(Icons.person_rounded, color: colorScheme.onSurfaceVariant)
-            : null,
-      ),
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: onPerfil,
-          child: const Row(
-            children: [
-              Icon(Icons.person_outline_rounded),
-              SizedBox(width: 12),
-              Text('Mi perfil'),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: onCerrarSesion,
-          child: Row(
-            children: [
-              Icon(Icons.logout_rounded, color: colorScheme.error),
-              const SizedBox(width: 12),
-              Text('Cerrar sesión', style: TextStyle(color: colorScheme.error)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BarraDeBusqueda extends StatelessWidget {
-  const _BarraDeBusqueda({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          child: Row(
-            children: [
-              Icon(Icons.search_rounded, color: colorScheme.onSurfaceVariant),
-              const SizedBox(width: 12),
-              Text(
-                'Buscar ropa, uniformes, juguetes...',
-                style: Theme.of(context).textTheme.bodyLarge
-                    ?.copyWith(color: colorScheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Tile único para acciones rápidas (Favoritos, Mensajes) y estadísticas
-/// (Activas, Vistas totales): mismo estilo visual — fondo de color sólido,
-/// ícono y texto centrados — para que el dashboard se vea coherente en vez
-/// de mezclar dos lenguajes visuales distintos. Si lleva [valor], se ve
-/// como estadística (con el número grande); si no, como acción (tocable).
+/// Tile único para la acción (Publicar) y estadísticas (Activas, Vistas
+/// totales): mismo estilo visual — fondo de color sólido, ícono y texto
+/// centrados — para que el dashboard se vea coherente. Si lleva [valor], se
+/// ve como estadística (con el número grande).
 class _TarjetaAccion extends StatelessWidget {
   const _TarjetaAccion({
     required this.icono,
@@ -650,7 +454,6 @@ class _TarjetaAccion extends StatelessWidget {
     required this.colorTexto,
     this.valor,
     this.onTap,
-    this.badge,
     this.seleccionado = false,
   });
 
@@ -660,12 +463,6 @@ class _TarjetaAccion extends StatelessWidget {
   final Color colorTexto;
   final String? valor;
   final VoidCallback? onTap;
-
-  /// Cantidad a mostrar en el globito rojo arriba a la derecha (p. ej.
-  /// conversaciones sin leer) — sin esto, la vendedora no tenía ninguna
-  /// forma de darse cuenta desde el Home que alguien le escribió, más que
-  /// entrando a "Mensajes" a mirar.
-  final int? badge;
 
   /// Si esta tarjeta actúa como filtro activo (p. ej. "Activas" cuando la
   /// lista de abajo ya está filtrada), se lo marca con un borde para que
@@ -697,91 +494,33 @@ class _TarjetaAccion extends StatelessWidget {
       ],
     );
 
-    // Una tarjeta sin onTap es pura estadística (no hace nada al tocarla)
-    // — se pinta apagada, solo con borde, para que no invite a tocarla
-    // como si fuera un botón. Las que sí son acción quedan con el relleno
-    // de color de siempre, y si están "seleccionadas" (un filtro activo)
-    // suman un borde marcado para confirmar que el toque tuvo efecto.
-    final esSoloEstadistica = onTap == null;
-
-    final tarjeta = Material(
-      color: esSoloEstadistica ? Colors.transparent : color,
+    return Material(
+      color: color,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: esSoloEstadistica
-              ? Border.all(color: colorTexto.withValues(alpha: 0.3))
-              : (seleccionado ? Border.all(color: colorTexto, width: 2) : null),
+          border: seleccionado
+              ? Border.all(color: colorTexto, width: 2)
+              : null,
         ),
-        child: esSoloEstadistica
-            ? Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                  horizontal: 8,
-                ),
-                child: contenido,
-              )
-            : InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: onTap,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 8,
-                  ),
-                  child: contenido,
-                ),
-              ),
-      ),
-    );
-
-    if (badge == null || badge == 0) return tarjeta;
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // Un Stack da a sus hijos no posicionados restricciones "loose" en
-        // vez de las "tight" que daba el Expanded de antes — sin este
-        // SizedBox la tarjeta se encoge a su contenido y el badge, ubicado
-        // relativo al Stack entero, queda flotando lejos de ella.
-        SizedBox(width: double.infinity, child: tarjeta),
-        Positioned(
-          top: -6,
-          right: -6,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            constraints: const BoxConstraints(minWidth: 22),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.error,
-              borderRadius: BorderRadius.circular(11),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.surface,
-                width: 2,
-              ),
-            ),
-            child: Text(
-              badge! > 9 ? '9+' : '$badge',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onError,
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-              ),
-            ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+            child: contenido,
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
 /// Tarjeta para usuarias nuevas con los pasos que no son obligatorios para
 /// usar la app pero sí para sacarle el jugo (confirmar el email, verificar
-/// identidad, conectar Mercado Pago) — sin esto, nada en el Home avisaba
-/// que existían hasta que alguien entraba a "Mi perfil" por su cuenta (o,
-/// en el caso del email, no se enteraba nunca). Desaparece sola cuando
-/// todos los pasos están completos, o si la usuaria la cierra a mano.
+/// identidad, conectar Mercado Pago) — desaparece sola cuando todos los
+/// pasos están completos, o si la usuaria la cierra a mano.
 class _TarjetaOnboarding extends StatelessWidget {
   const _TarjetaOnboarding({
     required this.emailVerificado,

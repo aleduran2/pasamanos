@@ -7,12 +7,8 @@ import 'package:pasamanos/features/auth/models/app_user.dart';
 import 'package:pasamanos/features/auth/providers/auth_providers.dart';
 import 'package:pasamanos/features/catalogo/data/publicacion_repository.dart';
 import 'package:pasamanos/features/catalogo/models/publicacion.dart';
+import 'package:pasamanos/features/catalogo/presentation/mis_publicaciones_screen.dart';
 import 'package:pasamanos/features/catalogo/providers/catalogo_providers.dart';
-import 'package:pasamanos/features/chat/data/chat_repository.dart';
-import 'package:pasamanos/features/chat/providers/chat_providers.dart';
-import 'package:pasamanos/features/home/presentation/home_screen.dart';
-import 'package:pasamanos/features/notificaciones/data/fcm_token_service.dart';
-import 'package:pasamanos/features/notificaciones/providers/notificaciones_providers.dart';
 import 'package:pasamanos/features/perfil/data/mercadopago_repository.dart';
 import 'package:pasamanos/features/perfil/data/user_profile_repository.dart';
 import 'package:pasamanos/features/perfil/models/user_profile.dart';
@@ -22,10 +18,6 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockPublicacionRepository extends Mock implements PublicacionRepository {}
 
-class _MockFcmTokenService extends Mock implements FcmTokenService {}
-
-class _MockChatRepository extends Mock implements ChatRepository {}
-
 class _MockUserProfileRepository extends Mock implements UserProfileRepository {}
 
 class _MockMercadoPagoRepository extends Mock implements MercadoPagoRepository {}
@@ -33,8 +25,6 @@ class _MockMercadoPagoRepository extends Mock implements MercadoPagoRepository {
 void main() {
   late _MockAuthRepository mockAuthRepository;
   late _MockPublicacionRepository mockPublicacionRepository;
-  late _MockFcmTokenService mockFcmTokenService;
-  late _MockChatRepository mockChatRepository;
   late _MockUserProfileRepository mockUserProfileRepository;
   late _MockMercadoPagoRepository mockMercadoPagoRepository;
 
@@ -47,8 +37,6 @@ void main() {
   setUp(() {
     mockAuthRepository = _MockAuthRepository();
     mockPublicacionRepository = _MockPublicacionRepository();
-    mockFcmTokenService = _MockFcmTokenService();
-    mockChatRepository = _MockChatRepository();
     mockUserProfileRepository = _MockUserProfileRepository();
     mockMercadoPagoRepository = _MockMercadoPagoRepository();
     when(() => mockAuthRepository.currentUser).thenReturn(usuario);
@@ -57,12 +45,6 @@ void main() {
     when(
       () => mockAuthRepository.refrescarUsuario(),
     ).thenAnswer((_) async => usuario);
-    when(
-      () => mockFcmTokenService.registrarToken(any()),
-    ).thenAnswer((_) async {});
-    when(
-      () => mockChatRepository.misConversaciones('uid-1'),
-    ).thenAnswer((_) => Stream.value(const []));
     // Por defecto, sin perfil cargado: la tarjeta de onboarding necesita un
     // perfil no nulo para mostrarse, así que esto la mantiene oculta salvo
     // que un test puntual la pise.
@@ -74,7 +56,10 @@ void main() {
     ).thenAnswer((_) async => false);
   });
 
-  Future<void> pumpHomeScreen(WidgetTester tester) async {
+  Future<void> pumpPantalla(
+    WidgetTester tester, {
+    VoidCallback? onIrAPerfil,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -82,8 +67,6 @@ void main() {
           publicacionRepositoryProvider.overrideWithValue(
             mockPublicacionRepository,
           ),
-          fcmTokenServiceProvider.overrideWithValue(mockFcmTokenService),
-          chatRepositoryProvider.overrideWithValue(mockChatRepository),
           userProfileRepositoryProvider.overrideWithValue(
             mockUserProfileRepository,
           ),
@@ -91,7 +74,9 @@ void main() {
             mockMercadoPagoRepository,
           ),
         ],
-        child: const MaterialApp(home: HomeScreen()),
+        child: MaterialApp(
+          home: MisPublicacionesScreen(onIrAPerfil: onIrAPerfil ?? () {}),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -104,9 +89,9 @@ void main() {
       () => mockPublicacionRepository.listarPorVendedor('uid-1'),
     ).thenAnswer((_) async => []);
 
-    await pumpHomeScreen(tester);
+    await pumpPantalla(tester);
 
-    expect(find.text('Pasamanos'), findsOneWidget);
+    expect(find.text('Mis publicaciones'), findsOneWidget);
     expect(find.textContaining('Todavía no publicaste nada'), findsOneWidget);
   });
 
@@ -133,7 +118,7 @@ void main() {
       ],
     );
 
-    await pumpHomeScreen(tester);
+    await pumpPantalla(tester);
 
     expect(find.text('Guardapolvo talle 8'), findsOneWidget);
     expect(find.text('\$ 5.000'), findsOneWidget);
@@ -169,7 +154,7 @@ void main() {
       ],
     );
 
-    await pumpHomeScreen(tester);
+    await pumpPantalla(tester);
 
     // Antes de filtrar se ven las dos publicaciones.
     expect(find.text('Guardapolvo talle 8'), findsOneWidget);
@@ -220,7 +205,7 @@ void main() {
       ],
     );
 
-    await pumpHomeScreen(tester);
+    await pumpPantalla(tester);
 
     // Antes de ordenar, aparecen en el orden que las devuelve el repositorio.
     var titulos = tester
@@ -242,7 +227,7 @@ void main() {
     await tester.tap(find.text('Ver todas'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mis publicaciones'), findsOneWidget);
+    expect(find.text('Mis publicaciones'), findsAtLeastNWidgets(1));
   });
 
   testWidgets(
@@ -261,7 +246,7 @@ void main() {
         () => mockPublicacionRepository.listarPorVendedor('uid-1'),
       ).thenAnswer((_) async => []);
 
-      await pumpHomeScreen(tester);
+      await pumpPantalla(tester);
 
       expect(find.text('Completá tu cuenta'), findsOneWidget);
       expect(
@@ -295,7 +280,7 @@ void main() {
       () => mockPublicacionRepository.listarPorVendedor('uid-1'),
     ).thenAnswer((_) async => []);
 
-    await pumpHomeScreen(tester);
+    await pumpPantalla(tester);
 
     expect(find.text('Completá tu cuenta'), findsNothing);
   });
@@ -319,7 +304,7 @@ void main() {
       () => mockPublicacionRepository.listarPorVendedor('uid-1'),
     ).thenAnswer((_) async => []);
 
-    await pumpHomeScreen(tester);
+    await pumpPantalla(tester);
     expect(find.text('Completá tu cuenta'), findsOneWidget);
 
     await tester.tap(find.byTooltip('No volver a mostrar'));
@@ -359,7 +344,7 @@ void main() {
         () => mockPublicacionRepository.listarPorVendedor('uid-1'),
       ).thenAnswer((_) async => []);
 
-      await pumpHomeScreen(tester);
+      await pumpPantalla(tester);
 
       expect(find.text('Completá tu cuenta'), findsOneWidget);
       expect(find.text('Confirmá tu email'), findsOneWidget);
@@ -371,6 +356,32 @@ void main() {
 
       verify(() => mockAuthRepository.reenviarVerificacionEmail()).called(1);
       expect(find.text('Te volvimos a mandar el mail.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'tocar "Verificá tu identidad" en el onboarding llama a onIrAPerfil',
+    (tester) async {
+      when(
+        () => mockUserProfileRepository.obtenerPorId('uid-1'),
+      ).thenAnswer(
+        (_) async => const UserProfile(
+          uid: 'uid-1',
+          nombre: 'Vendedora',
+          email: 'vendedora@example.com',
+        ),
+      );
+      when(
+        () => mockPublicacionRepository.listarPorVendedor('uid-1'),
+      ).thenAnswer((_) async => []);
+
+      var llamado = false;
+      await pumpPantalla(tester, onIrAPerfil: () => llamado = true);
+
+      await tester.tap(find.text('Verificá tu identidad para compras protegidas'));
+      await tester.pumpAndSettle();
+
+      expect(llamado, isTrue);
     },
   );
 }

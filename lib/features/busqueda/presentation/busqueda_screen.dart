@@ -9,12 +9,14 @@ import '../../../core/widgets/grilla_dos_columnas.dart';
 import '../../../core/widgets/selector_con_otro.dart';
 import '../../../core/widgets/selector_multiple_desplegable.dart';
 import '../../../core/widgets/tarjeta_seleccionable.dart';
+import '../../alertas/presentation/alertas_screen.dart';
 import '../../alertas/providers/alerta_providers.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../catalogo/models/publicacion.dart';
 import '../../catalogo/presentation/publicacion_detail_screen.dart';
 import '../../catalogo/presentation/publicacion_list_tile.dart';
 import '../../catalogo/providers/catalogo_providers.dart';
+import '../../favoritos/presentation/favoritos_screen.dart';
 import '../../favoritos/providers/favorito_providers.dart';
 
 enum _Orden { recientes, menorPrecio, mayorPrecio }
@@ -52,6 +54,11 @@ class _BusquedaScreenState extends ConsumerState<BusquedaScreen> {
   void initState() {
     super.initState();
     _cargarFavoritos();
+    // Al ser ahora la pestaña "Inicio", muestra resultados de entrada (sin
+    // filtros) en vez de esperar a que alguien elija una etapa o toque
+    // "Aplicar filtros" — eso tenía sentido cuando era una pantalla de
+    // búsqueda aparte a la que se entraba con una intención puntual.
+    _buscar();
   }
 
   @override
@@ -156,7 +163,25 @@ class _BusquedaScreenState extends ConsumerState<BusquedaScreen> {
     // un solo scroll: evita el desborde cuando el teclado aparece con los
     // filtros extra desplegados.
     return Scaffold(
-      appBar: AppBar(title: const Text('Buscar productos')),
+      appBar: AppBar(
+        title: const Text('Pasamanos'),
+        actions: [
+          IconButton(
+            tooltip: 'Favoritos',
+            icon: const Icon(Icons.favorite_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const FavoritosScreen()),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Alertas',
+            icon: const Icon(Icons.notifications_active_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AlertasScreen()),
+            ),
+          ),
+        ],
+      ),
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
@@ -396,19 +421,6 @@ class _BusquedaScreenState extends ConsumerState<BusquedaScreen> {
   }
 
   List<Widget> _construirResultadosSlivers() {
-    if (_futuro == null) {
-      return const [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: EmptyState(
-            icon: Icons.travel_explore_rounded,
-            mensaje:
-                'Elegí una etapa/edad o tocá "Aplicar filtros" para ver '
-                'los productos disponibles.',
-          ),
-        ),
-      ];
-    }
     return [
       SliverToBoxAdapter(
         child: FutureBuilder<List<Publicacion>>(

@@ -393,6 +393,27 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
     }
   }
 
+  Future<void> _cerrarSesion() async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Querés cerrar tu sesión en Pasamanos?'),
+        actions: [
+          DialogoBotones(
+            textoCancelar: 'Cancelar',
+            textoConfirmar: 'Cerrar sesión',
+            onCancelar: () => Navigator.of(context).pop(false),
+            onConfirmar: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmado == true) {
+      await ref.read(authRepositoryProvider).signOut();
+    }
+  }
+
   Future<void> _conectarMercadoPago() async {
     final usuario = ref.read(authRepositoryProvider).currentUser;
     if (usuario == null) return;
@@ -756,6 +777,15 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
                         ? null
                         : _cambiarNotificaciones,
                   ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _cerrarSesion,
+            icon: Icon(Icons.logout_rounded, color: colorScheme.error),
+            label: Text(
+              'Cerrar sesión',
+              style: TextStyle(color: colorScheme.error),
+            ),
           ),
           const SizedBox(height: 16),
           Center(
