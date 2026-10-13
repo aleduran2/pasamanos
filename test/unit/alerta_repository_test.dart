@@ -58,6 +58,18 @@ void main() {
     expect(alertas.first.uid, 'uid-compradora');
   });
 
+  test(
+    'crear sin talle (categoría que no usa talles) guarda talle null',
+    () async {
+      await repository.crear(uid: 'uid-compradora', categoria: Categoria.accesorios);
+
+      final alertas = await repository.misAlertas('uid-compradora').first;
+      expect(alertas, hasLength(1));
+      expect(alertas.first.categoria, Categoria.accesorios);
+      expect(alertas.first.talle, isNull);
+    },
+  );
+
   test('eliminar borra la alerta', () async {
     await repository.crear(
       uid: 'uid-compradora',

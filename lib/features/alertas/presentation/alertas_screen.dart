@@ -38,40 +38,35 @@ class _AlertasScreenState extends ConsumerState<AlertasScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                // Una alerta es siempre "avisame cuando aparezca este
-                // TALLE" — no tiene sentido ofrecer categorías que no
-                // manejan talles (accesorios, juguetes, libros, bebé):
-                // antes se podían elegir igual y solo ahí aparecía un
-                // cartel pidiendo elegir otra, un paso de ida y vuelta
-                // innecesario.
-                children: Categoria.values
-                    .where((valor) => tallesParaCategoria(valor) != null)
-                    .map((valor) {
-                      final seleccionada = categoria == valor;
-                      final colorScheme = Theme.of(context).colorScheme;
-                      return ChoiceChip(
-                        label: Text(valor.etiqueta),
-                        labelStyle: TextStyle(
-                          color: seleccionada
-                              ? colorScheme.onPrimary
-                              : colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        selected: seleccionada,
-                        // Sin esto, Material agrega un tilde adentro del
-                        // chip seleccionado — con `selectedColor` oscuro
-                        // ese tilde queda casi invisible. El color de
-                        // fondo ya alcanza para marcar la selección.
-                        showCheckmark: false,
-                        selectedColor: colorScheme.primary,
-                        onSelected: (_) => setDialogState(() {
-                          categoria = valor;
-                          talle = null;
-                        }),
-                      );
-                    })
-                    .toList(),
+                children: Categoria.values.map((valor) {
+                  final seleccionada = categoria == valor;
+                  final colorScheme = Theme.of(context).colorScheme;
+                  return ChoiceChip(
+                    label: Text(valor.etiqueta),
+                    labelStyle: TextStyle(
+                      color: seleccionada
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    selected: seleccionada,
+                    // Sin esto, Material agrega un tilde adentro del
+                    // chip seleccionado — con `selectedColor` oscuro ese
+                    // tilde queda casi invisible. El color de fondo ya
+                    // alcanza para marcar la selección.
+                    showCheckmark: false,
+                    selectedColor: colorScheme.primary,
+                    onSelected: (_) => setDialogState(() {
+                      categoria = valor;
+                      talle = null;
+                    }),
+                  );
+                }).toList(),
               ),
+              // Si la categoría elegida no usa talles (accesorios,
+              // juguetes, libros, bebé), no se pide ninguno — la alerta
+              // directamente queda por "cualquier producto nuevo de esta
+              // categoría", sin ningún cartel de más.
               if (tallesParaCategoria(categoria) case final talles?) ...[
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -91,7 +86,9 @@ class _AlertasScreenState extends ConsumerState<AlertasScreen> {
               textoCancelar: 'Cancelar',
               textoConfirmar: 'Crear alerta',
               onCancelar: () => Navigator.of(context).pop(false),
-              onConfirmar: categoria == null || talle == null
+              onConfirmar:
+                  categoria == null ||
+                      (tallesParaCategoria(categoria) != null && talle == null)
                   ? null
                   : () => Navigator.of(context).pop(true),
             ),
@@ -99,11 +96,16 @@ class _AlertasScreenState extends ConsumerState<AlertasScreen> {
         ),
       ),
     );
-    if (confirmado != true || categoria == null || talle == null) return;
+    final requiereTalle = tallesParaCategoria(categoria) != null;
+    if (confirmado != true ||
+        categoria == null ||
+        (requiereTalle && talle == null)) {
+      return;
+    }
 
     await ref
         .read(alertaRepositoryProvider)
-        .crear(uid: usuario.uid, categoria: categoria!, talle: talle!);
+        .crear(uid: usuario.uid, categoria: categoria!, talle: talle);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Alerta creada.')),
@@ -178,12 +180,16 @@ class _AlertasScreenState extends ConsumerState<AlertasScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Talle ${alerta.talle}',
+                                  alerta.talle != null
+                                      ? 'Talle ${alerta.talle}'
+                                      : alerta.categoria.etiqueta,
                                   style: Theme.of(context).textTheme.bodyLarge
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                                 Text(
-                                  alerta.categoria.etiqueta,
+                                  alerta.talle != null
+                                      ? alerta.categoria.etiqueta
+                                      : 'Cualquier talle',
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         color: colorScheme.onSurfaceVariant,

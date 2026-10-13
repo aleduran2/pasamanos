@@ -6,10 +6,12 @@ import '../models/alerta.dart';
 abstract class AlertaRepository {
   /// Id determinístico (uid + categoría + talle): crear la misma alerta
   /// dos veces no duplica la fila ni, más importante, el aviso por push.
+  /// `talle` es null para categorías que no usan talles (accesorios,
+  /// juguetes, libros, bebé) — la alerta queda por "cualquier talle".
   Future<void> crear({
     required String uid,
     required Categoria categoria,
-    required String talle,
+    String? talle,
   });
 
   Future<void> eliminar(String id);
@@ -26,8 +28,8 @@ class FirestoreAlertaRepository implements AlertaRepository {
   CollectionReference<Map<String, dynamic>> get _ref =>
       _firestore.collection('alertas');
 
-  String _idPara(String uid, Categoria categoria, String talle) {
-    final talleSanitizado = talle.replaceAll('/', '-');
+  String _idPara(String uid, Categoria categoria, String? talle) {
+    final talleSanitizado = (talle ?? '_cualquiera').replaceAll('/', '-');
     return '${uid}_${categoria.name}_$talleSanitizado';
   }
 
@@ -35,12 +37,16 @@ class FirestoreAlertaRepository implements AlertaRepository {
   Future<void> crear({
     required String uid,
     required Categoria categoria,
-    required String talle,
+    String? talle,
   }) async {
     final id = _idPara(uid, categoria, talle);
     await _ref.doc(id).set({
       'uid': uid,
       'categoria': categoria.valorFirestore,
+      // Se escribe explícitamente en null (no se omite el campo): la
+      // función de backend necesita poder filtrar por
+      // `where('talle', isEqualTo: null)`, que no matchea documentos
+      // donde el campo directamente no existe.
       'talle': talle,
       'fechaCreacion': FieldValue.serverTimestamp(),
     });
