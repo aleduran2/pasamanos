@@ -151,7 +151,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: ListView(
                 children: [
                   const SizedBox(height: 24),
-                  const LogoPasamanos(),
+                  // Center, no solo el widget a secas: dentro de un
+                  // ListView cada hijo recibe un ancho de cross-axis
+                  // forzado (igual al del propio ListView) — sin esto el
+                  // logo quedaba estirado a todo el ancho de la pantalla
+                  // y BoxFit.cover recortaba la imagen para cubrir ese
+                  // rectángulo en vez de mostrarla cuadrada.
+                  const Center(child: LogoPasamanos()),
                   const SizedBox(height: 20),
                   Text(
                     'Pasamanos',
