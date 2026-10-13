@@ -186,15 +186,18 @@ class _AlertasScreenState extends ConsumerState<AlertasScreen> {
                                   style: Theme.of(context).textTheme.bodyLarge
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
-                                Text(
-                                  alerta.talle != null
-                                      ? alerta.categoria.etiqueta
-                                      : 'Cualquier talle',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
+                                // Si no usa talle, el título de arriba ya es
+                                // la categoría — no hay una segunda línea
+                                // que agregar (nada que aclarar tipo
+                                // "cualquier talle", eso no aporta nada).
+                                if (alerta.talle != null)
+                                  Text(
+                                    alerta.categoria.etiqueta,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
                               ],
                             ),
                           ),
