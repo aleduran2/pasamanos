@@ -11,6 +11,10 @@ abstract class AuthRepository {
 
   Future<AppUser> signInWithEmail({required String email, required String password});
 
+  /// Manda el mail de "restablecer contraseña" de Firebase (el link
+  /// incluido la deja poner una nueva sin necesitar la actual).
+  Future<void> enviarResetContrasena(String email);
+
   Future<AppUser> registerWithEmail({
     required String email,
     required String password,
@@ -77,6 +81,11 @@ class FirebaseAuthRepository implements AuthRepository {
       fotoUrl: user.photoURL,
       emailVerificado: user.emailVerified,
     );
+  }
+
+  @override
+  Future<void> enviarResetContrasena(String email) async {
+    await _firebaseAuth.sendPasswordResetEmail(email: email);
   }
 
   @override

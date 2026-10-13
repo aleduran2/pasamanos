@@ -124,4 +124,53 @@ void main() {
 
     verify(() => mockAuthRepository.signInWithGoogle()).called(1);
   });
+
+  testWidgets(
+    '"Olvidaste tu contraseña" precarga el email y llama a enviarResetContrasena',
+    (tester) async {
+      when(
+        () => mockAuthRepository.enviarResetContrasena(any()),
+      ).thenAnswer((_) async {});
+
+      await pumpLoginScreen(tester);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Email'),
+        'juana@example.com',
+      );
+      await tester.tap(find.text('¿Olvidaste tu contraseña?'));
+      await tester.pumpAndSettle();
+
+      // El email ya escrito en el login viene precargado en el diálogo
+      // (además del que ya estaba en el campo de atrás, de ahí los dos).
+      expect(find.text('juana@example.com'), findsNWidgets(2));
+
+      await tester.tap(find.text('Enviar'));
+      await tester.pumpAndSettle();
+
+      verify(
+        () => mockAuthRepository.enviarResetContrasena('juana@example.com'),
+      ).called(1);
+      expect(
+        find.text('Te mandamos un mail a juana@example.com.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    '"Olvidaste tu contraseña" valida el email antes de enviar',
+    (tester) async {
+      await pumpLoginScreen(tester);
+
+      await tester.tap(find.text('¿Olvidaste tu contraseña?'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Enviar'));
+      await tester.pump();
+
+      expect(find.text('Ingresá un email válido'), findsOneWidget);
+      verifyNever(() => mockAuthRepository.enviarResetContrasena(any()));
+    },
+  );
 }

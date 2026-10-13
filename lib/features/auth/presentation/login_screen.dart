@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/campo_password.dart';
+import '../../../core/widgets/dialogo_botones.dart';
 import '../../../core/widgets/logo_pasamanos.dart';
 import '../providers/auth_providers.dart';
 import 'auth_error_messages.dart';
@@ -49,6 +50,75 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .showSnackBar(SnackBar(content: Text(mensajeErrorAuth(error))));
     } finally {
       if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  Future<void> _olvideContrasena() async {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    String? error;
+
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Restablecer contraseña'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Ingresá tu email y te mandamos un link para poner una '
+                'contraseña nueva.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  errorText: error,
+                ),
+                onChanged: (_) {
+                  if (error != null) setDialogState(() => error = null);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            DialogoBotones(
+              textoCancelar: 'Cancelar',
+              textoConfirmar: 'Enviar',
+              onCancelar: () => Navigator.of(context).pop(false),
+              onConfirmar: () {
+                if (!emailController.text.trim().contains('@')) {
+                  setDialogState(() => error = 'Ingresá un email válido');
+                  return;
+                }
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmado != true) return;
+    final email = emailController.text.trim();
+
+    try {
+      await ref.read(authRepositoryProvider).enviarResetContrasena(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Te mandamos un mail a $email.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(mensajeErrorAuth(error))));
+      }
     }
   }
 
@@ -119,7 +189,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _cargando ? null : _olvideContrasena,
+                      child: const Text('¿Olvidaste tu contraseña?'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   FilledButton(
                     onPressed: _cargando ? null : _iniciarSesion,
                     child: _cargando
