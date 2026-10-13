@@ -21,12 +21,6 @@ class AppTheme {
 
   static const Color _semilla = Color(0xFF2557D6);
 
-  /// Azul y coral de marca, expuestos para reusar fuera del `ColorScheme`
-  /// (p. ej. el logo de [LogoPasamanos], que no depende del tema porque
-  /// tiene que verse igual en cualquier pantalla donde aparezca).
-  static const Color azulMarca = _primario;
-  static const Color coralMarca = _secundario;
-
   static const Color _primario = Color(0xFF2557D6);
   static const Color _onPrimario = Color(0xFFFFFFFF);
   static const Color _primarioContainer = Color(0xFFDCE6FF);
