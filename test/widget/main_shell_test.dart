@@ -130,16 +130,27 @@ void main() {
   int indiceSeleccionado(WidgetTester tester) =>
       tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex;
 
+  // El label de la pestaña "Mis publicaciones" coincide con el título del
+  // AppBar de esa misma pantalla (construida igual por el IndexedStack, se
+  // pinte o no) — hay que acotar la búsqueda a la barra de navegación para
+  // no toparse con "Found 2 widgets".
+  Finder destinoNavBar(String label) => find.descendant(
+    of: find.byType(NavigationBar),
+    matching: find.text(label),
+  );
+
   testWidgets('arranca en la pestaña Inicio (índice 0)', (tester) async {
     await pumpPantalla(tester);
 
     expect(indiceSeleccionado(tester), 0);
   });
 
-  testWidgets('tocar "Mis ventas" selecciona el índice 1', (tester) async {
+  testWidgets('tocar "Mis publicaciones" selecciona el índice 1', (
+    tester,
+  ) async {
     await pumpPantalla(tester);
 
-    await tester.tap(find.text('Mis ventas'));
+    await tester.tap(destinoNavBar('Mis publicaciones'));
     await tester.pumpAndSettle();
 
     expect(indiceSeleccionado(tester), 1);
@@ -148,14 +159,14 @@ void main() {
   testWidgets('tocar "Perfil" selecciona el índice 3', (tester) async {
     await pumpPantalla(tester);
 
-    await tester.tap(find.text('Perfil'));
+    await tester.tap(destinoNavBar('Perfil'));
     await tester.pumpAndSettle();
 
     expect(indiceSeleccionado(tester), 3);
   });
 
   testWidgets(
-    'desde "Mis ventas", tocar un paso del onboarding va a la pestaña Perfil',
+    'desde "Mis publicaciones", tocar un paso del onboarding va a la pestaña Perfil',
     (tester) async {
       when(
         () => mockUserProfileRepository.obtenerPorId('uid-1'),
@@ -168,7 +179,7 @@ void main() {
       );
 
       await pumpPantalla(tester);
-      await tester.tap(find.text('Mis ventas'));
+      await tester.tap(destinoNavBar('Mis publicaciones'));
       await tester.pumpAndSettle();
       expect(indiceSeleccionado(tester), 1);
 

@@ -14,15 +14,17 @@ class LogoPasamanos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sin ClipRRect propio a proposito: el archivo ya trae esquinas
-    // redondeadas dibujadas -- enmascarar de nuevo con un radio distinto
-    // al que ya tiene el dibujo generaria un desajuste visible entre las
-    // dos curvas.
-    return Image.asset(
-      'assets/icon/icon.png',
-      width: tamanio,
-      height: tamanio,
-      fit: BoxFit.cover,
+    // Circular, como se ve el icono real en la mayoria de los launchers de
+    // Android (forma adaptativa) -- el dibujo (percha + corazon) ya queda
+    // centrado dentro del cuadrado, asi que recortarlo en circulo solo
+    // saca las esquinas de fondo azul, sin tocar el dibujo en si.
+    return ClipOval(
+      child: Image.asset(
+        'assets/icon/icon.png',
+        width: tamanio,
+        height: tamanio,
+        fit: BoxFit.cover,
+      ),
     );
   }
 }

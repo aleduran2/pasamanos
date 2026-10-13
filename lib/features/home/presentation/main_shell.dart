@@ -68,7 +68,7 @@ class _MainShellState extends ConsumerState<MainShell> {
           const NavigationDestination(
             icon: Icon(Icons.inventory_2_outlined),
             selectedIcon: Icon(Icons.inventory_2_rounded),
-            label: 'Mis ventas',
+            label: 'Mis publicaciones',
           ),
           NavigationDestination(
             icon: usuario == null

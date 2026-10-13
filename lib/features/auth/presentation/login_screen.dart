@@ -166,7 +166,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Ropa, uniformes y juguetes de chicos,\nentre familias de La Plata.',
+                    'Ropa, uniformes y juguetes de chicos,\nde familia a familia.',
                     style: Theme.of(context).textTheme.bodyMedium
                         ?.copyWith(color: colorScheme.onSurfaceVariant),
                   ),
