@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../core/data/barrios_la_plata.dart';
-import '../../../core/data/colegios_la_plata.dart';
+import '../../../core/data/barrios.dart';
+import '../../../core/data/ciudades.dart';
+import '../../../core/data/colegios.dart';
 import '../../../core/data/talles.dart';
 import '../../../core/widgets/grilla_dos_columnas.dart';
 import '../../../core/widgets/selector_con_otro.dart';
@@ -27,6 +28,25 @@ const _etiquetasFotos = {
   'etiqueta': 'Etiqueta',
   'detalle': 'Detalle',
 };
+
+// Al editar una publicación existente, el barrio/colegio ya guardado puede
+// ser de una ciudad distinta a la que arranca preseleccionada — se busca en
+// qué ciudad figura ese valor para no mostrar, por ejemplo, un barrio de
+// Ensenada con "La Plata" elegida arriba.
+String _detectarCiudad(Publicacion? publicacion) {
+  if (publicacion == null) return ciudadPorDefecto;
+  for (final entry in barriosPorCiudad.entries) {
+    if (publicacion.barrio != null && entry.value.contains(publicacion.barrio)) {
+      return entry.key;
+    }
+  }
+  for (final entry in colegiosPorCiudad.entries) {
+    if (publicacion.colegio != null && entry.value.contains(publicacion.colegio)) {
+      return entry.key;
+    }
+  }
+  return ciudadPorDefecto;
+}
 
 class PublicarProductoScreen extends ConsumerStatefulWidget {
   const PublicarProductoScreen({super.key, this.publicacionExistente});
@@ -52,6 +72,7 @@ class _PublicarProductoScreenState
   late final _precioController = TextEditingController(
     text: widget.publicacionExistente?.precio.toStringAsFixed(0),
   );
+  late String _ciudad = _detectarCiudad(widget.publicacionExistente);
   late String? _colegio = widget.publicacionExistente?.colegio;
   late String? _barrio = widget.publicacionExistente?.barrio;
   late String? _talle = widget.publicacionExistente?.talle;
@@ -388,12 +409,33 @@ class _PublicarProductoScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _ciudad,
+                    decoration: const InputDecoration(labelText: 'Ciudad'),
+                    isExpanded: true,
+                    items: ciudadesDisponibles
+                        .map(
+                          (c) => DropdownMenuItem(value: c, child: Text(c)),
+                        )
+                        .toList(),
+                    onChanged: (valor) {
+                      if (valor == null) return;
+                      setState(() {
+                        _ciudad = valor;
+                        // El colegio/barrio elegidos pueden no existir en
+                        // la ciudad nueva.
+                        _colegio = null;
+                        _barrio = null;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 14),
                   SelectorConOtro(
                     valorInicial: _colegio,
                     onChanged: (valor) => setState(() => _colegio = valor),
                     label: 'Colegio',
                     labelOtro: 'Nombre del colegio',
-                    opciones: colegiosLaPlata,
+                    opciones: colegiosDe(_ciudad),
                     valorOtro: colegioOtroValor,
                   ),
                   const SizedBox(height: 14),
@@ -402,7 +444,7 @@ class _PublicarProductoScreenState
                     onChanged: (valor) => setState(() => _barrio = valor),
                     label: 'Barrio',
                     labelOtro: 'Nombre del barrio',
-                    opciones: barriosLaPlata,
+                    opciones: barriosDe(_ciudad),
                     valorOtro: barrioOtroValor,
                   ),
                 ],

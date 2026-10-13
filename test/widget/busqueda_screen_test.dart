@@ -219,4 +219,31 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'elegir otra ciudad acota las opciones de Barrio a esa ciudad',
+    (tester) async {
+      await pumpPantalla(tester);
+
+      await tester.tap(find.text('Más filtros'));
+      await tester.pumpAndSettle();
+
+      // Por defecto, "La Plata": el desplegable de Ciudad ya lo muestra.
+      expect(find.text('La Plata'), findsOneWidget);
+
+      await tester.tap(find.text('La Plata'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Berisso').last);
+      await tester.pumpAndSettle();
+
+      // Berisso todavía no tiene barrios cargados: el desplegable de
+      // Barrio solo debería ofrecer "Otro (escribir)".
+      await tester.ensureVisible(find.widgetWithText(InputDecorator, 'Barrio'));
+      await tester.tap(find.widgetWithText(InputDecorator, 'Barrio'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tolosa'), findsNothing);
+      expect(find.text('Otro (escribir)'), findsOneWidget);
+    },
+  );
 }

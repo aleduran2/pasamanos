@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/data/barrios_la_plata.dart';
-import '../../../core/data/colegios_la_plata.dart';
+import '../../../core/data/barrios.dart';
+import '../../../core/data/ciudades.dart';
+import '../../../core/data/colegios.dart';
 import '../../../core/data/talles.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/grilla_dos_columnas.dart';
@@ -39,6 +40,7 @@ class BusquedaScreen extends ConsumerStatefulWidget {
 class _BusquedaScreenState extends ConsumerState<BusquedaScreen> {
   EtapaEdad? _etapaSeleccionada;
   Categoria? _categoriaSeleccionada;
+  String _ciudad = ciudadPorDefecto;
   String? _colegio;
   String? _barrio;
   String? _talle;
@@ -121,6 +123,7 @@ class _BusquedaScreenState extends ConsumerState<BusquedaScreen> {
       _categoriaSeleccionada != null ||
       _talle != null ||
       _coloresSeleccionados.isNotEmpty ||
+      _ciudad != ciudadPorDefecto ||
       _colegio != null ||
       _barrio != null ||
       _precioMinController.text.isNotEmpty ||
@@ -149,6 +152,7 @@ class _BusquedaScreenState extends ConsumerState<BusquedaScreen> {
       _categoriaSeleccionada = null;
       _talle = null;
       _coloresSeleccionados.clear();
+      _ciudad = ciudadPorDefecto;
       _colegio = null;
       _barrio = null;
       _precioMinController.clear();
@@ -363,13 +367,38 @@ class _BusquedaScreenState extends ConsumerState<BusquedaScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          initialValue: _ciudad,
+                          decoration: const InputDecoration(
+                            labelText: 'Ciudad',
+                          ),
+                          isExpanded: true,
+                          items: ciudadesDisponibles
+                              .map(
+                                (c) =>
+                                    DropdownMenuItem(value: c, child: Text(c)),
+                              )
+                              .toList(),
+                          onChanged: (valor) {
+                            if (valor == null) return;
+                            setState(() {
+                              _ciudad = valor;
+                              // El colegio/barrio elegidos pueden no existir
+                              // en la ciudad nueva.
+                              _colegio = null;
+                              _barrio = null;
+                            });
+                            _buscar();
+                          },
+                        ),
+                        const SizedBox(height: 16),
                         SelectorConOtro(
                           valorInicial: _colegio,
                           onChanged: (valor) =>
                               setState(() => _colegio = valor),
                           label: 'Colegio',
                           labelOtro: 'Nombre del colegio',
-                          opciones: colegiosLaPlata,
+                          opciones: colegiosDe(_ciudad),
                           valorOtro: colegioOtroValor,
                         ),
                         const SizedBox(height: 12),
@@ -378,7 +407,7 @@ class _BusquedaScreenState extends ConsumerState<BusquedaScreen> {
                           onChanged: (valor) => setState(() => _barrio = valor),
                           label: 'Barrio',
                           labelOtro: 'Nombre del barrio',
-                          opciones: barriosLaPlata,
+                          opciones: barriosDe(_ciudad),
                           valorOtro: barrioOtroValor,
                         ),
                         const SizedBox(height: 12),
