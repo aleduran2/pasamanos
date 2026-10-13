@@ -797,6 +797,15 @@ class _PerfilScreenState extends ConsumerState<PerfilScreen>
               child: const Text('Política de privacidad'),
             ),
           ),
+          Center(
+            child: TextButton(
+              onPressed: () => launchUrl(
+                Uri.parse('https://pasamanos-dev.web.app/eliminar-cuenta.html'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: const Text('Eliminar mi cuenta'),
+            ),
+          ),
         ],
       ),
     );
