@@ -33,14 +33,35 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _cargando = true);
     try {
+      final email = _emailController.text.trim();
       await ref
           .read(authRepositoryProvider)
           .registerWithEmail(
-            email: _emailController.text.trim(),
+            email: email,
             password: _passwordController.text,
             nombre: _nombreController.text.trim(),
           );
       TextInput.finishAutofillContext();
+      if (!mounted) return;
+      // Antes de volver a Login/Home: si se cierra la pantalla derecho,
+      // la usuaria ya queda logueada (AuthGate la manda a Home sola) y
+      // puede no darse cuenta de que tiene que confirmar el mail.
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Confirmá tu email'),
+          content: Text(
+            'Te mandamos un mail a $email para confirmar tu cuenta. '
+            'Revisá tu bandeja de entrada (y la de spam, por las dudas).',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;

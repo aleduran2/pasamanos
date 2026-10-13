@@ -45,6 +45,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   UserProfile? _perfil;
   bool _mpConectada = false;
 
+  /// Arranca en `true` (optimista) para no mostrar el aviso de "confirmá
+  /// tu email" ni por un instante mientras se carga el estado real —
+  /// recién se pone en `false` si `refrescarUsuario` confirma que de
+  /// verdad falta confirmarlo.
+  bool _emailVerificado = true;
+
   @override
   void initState() {
     super.initState();
@@ -54,18 +60,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _cargarEstadoOnboarding() async {
-    final usuario = ref.read(authRepositoryProvider).currentUser;
+    final authRepository = ref.read(authRepositoryProvider);
+    final usuario = authRepository.currentUser;
     if (usuario == null) return;
     final resultados = await Future.wait([
       ref.read(userProfileRepositoryProvider).obtenerPorId(usuario.uid),
       ref.read(mercadoPagoRepositoryProvider).estaConectada(usuario.uid),
+      // No alcanza con `usuario.emailVerificado`: ese viene del estado en
+      // memoria, que puede estar desactualizado si confirmó el mail en
+      // otra sesión — `refrescarUsuario` lo vuelve a pedir a Firebase.
+      authRepository.refrescarUsuario(),
     ]);
     if (mounted) {
       setState(() {
         _perfil = resultados[0] as UserProfile?;
         _mpConectada = resultados[1] as bool;
+        _emailVerificado = (resultados[2] as AppUser?)?.emailVerificado ?? true;
       });
     }
+  }
+
+  Future<void> _reenviarVerificacionEmail() async {
+    try {
+      await ref.read(authRepositoryProvider).reenviarVerificacionEmail();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Te volvimos a mandar el mail.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo reenviar el mail. Probá de nuevo en un rato.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _revisarEmailConfirmado() async {
+    final usuario = await ref.read(authRepositoryProvider).refrescarUsuario();
+    if (!mounted) return;
+    setState(() => _emailVerificado = usuario?.emailVerificado ?? false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _emailVerificado
+              ? '¡Listo, tu email ya está confirmado!'
+              : 'Todavía no figura confirmado. Revisá tu bandeja de entrada.',
+        ),
+      ),
+    );
   }
 
   Future<void> _ocultarOnboarding() async {
@@ -142,6 +188,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _errorPublicaciones = true;
         });
       }
+    }
+  }
+
+  Future<void> _abrirDialogoConfirmarEmail() async {
+    final accion = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmá tu email'),
+        content: const Text(
+          'Te mandamos un mail cuando te registraste. Si no lo encontrás, '
+          'podés pedir que te lo reenvíen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop('reenviar'),
+            child: const Text('Reenviar email'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop('revisar'),
+            child: const Text('Ya lo confirmé'),
+          ),
+        ],
+      ),
+    );
+    if (accion == 'reenviar') {
+      await _reenviarVerificacionEmail();
+    } else if (accion == 'revisar') {
+      await _revisarEmailConfirmado();
     }
   }
 
@@ -258,7 +332,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final mostrarOnboarding =
               perfil != null &&
               !perfil.onboardingOculto &&
-              (perfil.estadoVerificacion != EstadoVerificacion.verificado ||
+              (!_emailVerificado ||
+                  perfil.estadoVerificacion != EstadoVerificacion.verificado ||
                   !_mpConectada);
           final vistasTotales = publicaciones.fold<int>(
             0,
@@ -294,10 +369,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 const SizedBox(height: 18),
                 if (mostrarOnboarding) ...[
                   _TarjetaOnboarding(
+                    emailVerificado: _emailVerificado,
                     identidadVerificada:
                         perfil.estadoVerificacion ==
                         EstadoVerificacion.verificado,
                     mpConectada: _mpConectada,
+                    onConfirmarEmail: _abrirDialogoConfirmarEmail,
                     onIrAPerfil: _irAPerfil,
                     onCerrar: _ocultarOnboarding,
                   ),
@@ -699,21 +776,26 @@ class _TarjetaAccion extends StatelessWidget {
   }
 }
 
-/// Tarjeta para usuarias nuevas con los dos pasos que no son obligatorios
-/// para usar la app pero sí para sacarle el jugo (verificar identidad,
-/// conectar Mercado Pago) — sin esto, nada en el Home avisaba que existían
-/// hasta que alguien entraba a "Mi perfil" por su cuenta. Desaparece sola
-/// cuando ambos pasos están completos, o si la usuaria la cierra a mano.
+/// Tarjeta para usuarias nuevas con los pasos que no son obligatorios para
+/// usar la app pero sí para sacarle el jugo (confirmar el email, verificar
+/// identidad, conectar Mercado Pago) — sin esto, nada en el Home avisaba
+/// que existían hasta que alguien entraba a "Mi perfil" por su cuenta (o,
+/// en el caso del email, no se enteraba nunca). Desaparece sola cuando
+/// todos los pasos están completos, o si la usuaria la cierra a mano.
 class _TarjetaOnboarding extends StatelessWidget {
   const _TarjetaOnboarding({
+    required this.emailVerificado,
     required this.identidadVerificada,
     required this.mpConectada,
+    required this.onConfirmarEmail,
     required this.onIrAPerfil,
     required this.onCerrar,
   });
 
+  final bool emailVerificado;
   final bool identidadVerificada;
   final bool mpConectada;
+  final VoidCallback onConfirmarEmail;
   final VoidCallback onIrAPerfil;
   final VoidCallback onCerrar;
 
@@ -751,6 +833,11 @@ class _TarjetaOnboarding extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          _FilaOnboarding(
+            hecho: emailVerificado,
+            texto: 'Confirmá tu email',
+            onTap: onConfirmarEmail,
           ),
           _FilaOnboarding(
             hecho: identidadVerificada,

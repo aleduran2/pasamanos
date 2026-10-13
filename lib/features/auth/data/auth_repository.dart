@@ -21,6 +21,16 @@ abstract class AuthRepository {
 
   Future<void> signOut();
 
+  /// Reenvía el mail de verificación (p. ej. si no le llegó o lo borró sin
+  /// querer).
+  Future<void> reenviarVerificacionEmail();
+
+  /// Fuerza una relectura del usuario contra Firebase Auth — a diferencia
+  /// de `currentUser`, que lee el estado en memoria, esto sí refleja si
+  /// confirmó el mail recién, sin pedirle que cierre sesión y vuelva a
+  /// entrar.
+  Future<AppUser?> refrescarUsuario();
+
   /// Si la cuenta actual tiene contraseña (a diferencia de una cuenta
   /// vinculada solo con Google) — para decidir si mostrar la opción de
   /// cambiarla.
@@ -65,6 +75,7 @@ class FirebaseAuthRepository implements AuthRepository {
       email: user.email ?? '',
       nombre: user.displayName,
       fotoUrl: user.photoURL,
+      emailVerificado: user.emailVerified,
     );
   }
 
@@ -106,7 +117,20 @@ class FirebaseAuthRepository implements AuthRepository {
       nombre: nombre,
       email: email,
     );
-    return AppUser(uid: user.uid, email: email, nombre: nombre);
+    // No se espera a que falle: si Firebase no puede mandar el mail (cuota,
+    // dirección rara, lo que sea), la cuenta ya quedó creada igual — no
+    // tiene sentido dejar a la usuaria sin poder entrar por esto.
+    try {
+      await user.sendEmailVerification();
+    } catch (_) {
+      // Se puede reintentar después desde "Mi perfil".
+    }
+    return AppUser(
+      uid: user.uid,
+      email: email,
+      nombre: nombre,
+      emailVerificado: user.emailVerified,
+    );
   }
 
   // ID de cliente OAuth "Web" del proyecto pasamanos-dev, autogenerado por
@@ -143,6 +167,19 @@ class FirebaseAuthRepository implements AuthRepository {
       fotoUrl: user.photoURL ?? cuentaGoogle.photoUrl,
     );
     return _mapearUsuario(user)!;
+  }
+
+  @override
+  Future<void> reenviarVerificacionEmail() async {
+    await _firebaseAuth.currentUser?.sendEmailVerification();
+  }
+
+  @override
+  Future<AppUser?> refrescarUsuario() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return null;
+    await user.reload();
+    return _mapearUsuario(_firebaseAuth.currentUser);
   }
 
   @override

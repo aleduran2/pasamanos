@@ -38,7 +38,11 @@ void main() {
   late _MockUserProfileRepository mockUserProfileRepository;
   late _MockMercadoPagoRepository mockMercadoPagoRepository;
 
-  const usuario = AppUser(uid: 'uid-1', email: 'vendedora@example.com');
+  const usuario = AppUser(
+    uid: 'uid-1',
+    email: 'vendedora@example.com',
+    emailVerificado: true,
+  );
 
   setUp(() {
     mockAuthRepository = _MockAuthRepository();
@@ -48,6 +52,11 @@ void main() {
     mockUserProfileRepository = _MockUserProfileRepository();
     mockMercadoPagoRepository = _MockMercadoPagoRepository();
     when(() => mockAuthRepository.currentUser).thenReturn(usuario);
+    // Por defecto, email ya confirmado: así los tests que no les importa
+    // este detalle no ven aparecer la tarjeta de onboarding por sorpresa.
+    when(
+      () => mockAuthRepository.refrescarUsuario(),
+    ).thenAnswer((_) async => usuario);
     when(
       () => mockFcmTokenService.registrarToken(any()),
     ).thenAnswer((_) async {});
@@ -319,4 +328,49 @@ void main() {
     expect(find.text('Completá tu cuenta'), findsNothing);
     verify(() => mockUserProfileRepository.ocultarOnboarding('uid-1')).called(1);
   });
+
+  testWidgets(
+    'muestra "Confirmá tu email" si todavía no lo confirmó, y se puede reenviar',
+    (tester) async {
+      when(
+        () => mockAuthRepository.refrescarUsuario(),
+      ).thenAnswer((_) async => const AppUser(
+        uid: 'uid-1',
+        email: 'vendedora@example.com',
+        emailVerificado: false,
+      ));
+      when(
+        () => mockAuthRepository.reenviarVerificacionEmail(),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockUserProfileRepository.obtenerPorId('uid-1'),
+      ).thenAnswer(
+        (_) async => const UserProfile(
+          uid: 'uid-1',
+          nombre: 'Vendedora',
+          email: 'vendedora@example.com',
+          estadoVerificacion: EstadoVerificacion.verificado,
+        ),
+      );
+      when(
+        () => mockMercadoPagoRepository.estaConectada('uid-1'),
+      ).thenAnswer((_) async => true);
+      when(
+        () => mockPublicacionRepository.listarPorVendedor('uid-1'),
+      ).thenAnswer((_) async => []);
+
+      await pumpHomeScreen(tester);
+
+      expect(find.text('Completá tu cuenta'), findsOneWidget);
+      expect(find.text('Confirmá tu email'), findsOneWidget);
+
+      await tester.tap(find.text('Confirmá tu email'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reenviar email'));
+      await tester.pumpAndSettle();
+
+      verify(() => mockAuthRepository.reenviarVerificacionEmail()).called(1);
+      expect(find.text('Te volvimos a mandar el mail.'), findsOneWidget);
+    },
+  );
 }
